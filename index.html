@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
-  <title>CA_0017_X_A_DT - Free AR v1.1</title>
+  <title>CA_0017_X_A_DT - Free AR v1.2</title>
 
   <!-- model-viewer používame iba pre natívny AR režim -->
   <script type="module"
@@ -192,6 +192,33 @@
       background:#f4bd21;
     }
 
+    .arLauncher{
+      display:block;
+      width:176px;
+      height:44px;
+      min-width:176px;
+      overflow:hidden;
+      background:transparent;
+      --poster-color:transparent;
+      border-radius:10px;
+    }
+
+    .nativeArBtn{
+      width:176px;
+      height:44px;
+      border:1px solid #e2ae13;
+      border-radius:10px;
+      background:#ffc82e;
+      color:#111;
+      font-weight:800;
+      cursor:pointer;
+    }
+
+    .nativeArBtn:disabled{
+      opacity:.65;
+      cursor:not-allowed;
+    }
+
     .grid{
       display:grid;
       grid-template-columns:repeat(4,minmax(0,1fr));
@@ -225,17 +252,6 @@
       font-size:13px;
       line-height:1.45;
     }
-
-    /* model-viewer zostáva skrytý; používa sa len na activateAR() */
-    #arViewer{
-      position:absolute;
-      width:1px;
-      height:1px;
-      opacity:0;
-      pointer-events:none;
-      overflow:hidden;
-    }
-
     @media(max-width:700px){
       .app{ padding:10px; }
       .title{ font-size:20px; }
@@ -305,7 +321,22 @@
 
       <button type="button" id="saveStartBtn" class="saveStart">ULOŽIŤ ŠTART AR</button>
       <button type="button" id="resetStartBtn">RESET ŠTARTU</button>
-      <button type="button" id="arBtn" class="ar">ZOBRAZIŤ V AR</button>
+
+      <model-viewer
+        id="arViewer"
+        class="arLauncher"
+        src="CA_0017_X_A_DT_AR_METERS.glb"
+        loading="eager"
+        ar
+        ar-scale="fixed"
+        ar-placement="floor"
+        ar-modes="webxr scene-viewer"
+        shadow-intensity="1">
+        <button type="button" slot="ar-button" id="nativeArBtn" class="nativeArBtn">
+          ZOBRAZIŤ V AR
+        </button>
+      </model-viewer>
+
       <button type="button" id="markerArBtn">MARKER AR</button>
     </div>
 
@@ -344,15 +375,6 @@
     </div>
 
   </section>
-
-  <model-viewer
-    id="arViewer"
-    src="CA_0017_X_A_DT_AR_METERS.glb"
-    ar
-    ar-scale="fixed"
-    ar-modes="webxr scene-viewer quick-look">
-  </model-viewer>
-
 </div>
 
 <script type="module">
@@ -780,21 +802,48 @@
     applySavedArStart();
   });
 
-  document.getElementById('arBtn').addEventListener('click', async () => {
-    // Pred aktiváciou ešte raz aplikujeme uloženú orientáciu.
-    applySavedArStart();
+  const nativeArBtn = document.getElementById('nativeArBtn');
 
-    try {
-      if (typeof arViewer.activateAR === 'function') {
-        await arViewer.activateAR();
-      } else {
-        alert('AR režim nie je na tomto zariadení dostupný.');
-      }
-    } catch (e) {
-      console.error(e);
-      alert('AR sa nepodarilo spustiť na tomto zariadení.');
+  function refreshArButton(){
+    if (!nativeArBtn || !arViewer) return;
+
+    if (arViewer.canActivateAR) {
+      nativeArBtn.disabled = false;
+      nativeArBtn.textContent = 'ZOBRAZIŤ V AR';
+    } else {
+      nativeArBtn.disabled = true;
+      nativeArBtn.textContent = 'AR SA PRIPRAVUJE…';
+    }
+  }
+
+  arViewer.addEventListener('load', refreshArButton);
+
+  arViewer.addEventListener('ar-status', (event) => {
+    const status = event.detail && event.detail.status ? event.detail.status : '';
+
+    if (status === 'failed') {
+      arStatus.innerHTML =
+        '<strong>AR sa nepodarilo spustiť.</strong> Over, či má telefón podporu ARCore / ' +
+        'Google Play Services for AR a či je otvorená stránka v Chrome.';
+    }
+
+    if (status === 'session-started') {
+      arStatus.innerHTML =
+        '<strong>AR spustené.</strong> Pomaly pohybuj mobilom nad stolom, aby telefón našiel rovinu.';
+    }
+
+    if (status === 'object-placed') {
+      arStatus.innerHTML =
+        '<strong>Model položený ✓</strong> Teraz môžeš s mobilom chodiť okolo modelu.';
     }
   });
+
+  nativeArBtn.addEventListener('pointerdown', () => {
+    applySavedArStart();
+  }, {capture:true});
+
+  setTimeout(refreshArButton, 700);
+  setTimeout(refreshArButton, 1800);
 
   document.getElementById('markerArBtn').addEventListener('click', () => {
     window.location.href = './ar.html?v=9';
