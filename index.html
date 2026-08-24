@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
-  <title>CA_0017_X_A_DT · CNC 3D Viewer v105.1</title>
+  <title>CA_0017_X_A_DT · CNC 3D Viewer v106</title>
 
   <script type="module" src="https://cdn.jsdelivr.net/npm/@google/model-viewer@4.0.0/dist/model-viewer.min.js"></script>
   <script type="importmap">
@@ -56,7 +56,7 @@
 <div class="app">
   <div class="head">
     <div><div class="title">CA_0017_X_A_DT</div><div class="sub">CNC operátorský 3D viewer · DOOSAN DVF6500</div></div>
-    <div class="badge">CLEAN BUILD v105.1</div>
+    <div class="badge">CLEAN BUILD v106</div>
   </div>
 
   <section class="card">
@@ -121,9 +121,9 @@
     </div>
 
     <div class="note">
-      Základný 3D viewer v tejto verzii zostáva na stabilnom jadre z v104.
-      Tlačidlo <b>ZOBRAZIŤ V AR</b> otvára samostatný <b>free-ar.html</b>, ktorý používa pevný WebXR hit-test režim.
-      Materiál, farebné plochy a uložená X/Y/Z orientácia sa odovzdajú cez lokálne nastavenie zariadenia.
+      V106 je základný 3D preview znovu viditeľný a X/Y/Z rotácia sa ukazuje priamo na modeli.
+      <b>ZOBRAZIŤ V AR</b> otvorí samostatný AR režim, kde model najprv zostane v PREVIEW stave:
+      nastavíš priehľadnosť, jemne ho napasuješ a až potom dáš <b>ZAFIXOVAŤ</b>.
     </div>
   </section>
 </div>
@@ -238,26 +238,49 @@ function setView(v){
 
 new GLTFLoader().load('CA_0017_X_A_DT_D603_BLUE.glb',g=>{
   root=g.scene;
-  root.traverse(styleImportedMaterial);
 
-  // Vycentrujeme model, aby sa orientácia X/Y/Z otáčala prirodzene okolo stredu dielca.
-  const firstBox=new THREE.Box3().setFromObject(root);
-  const firstCenter=firstBox.getCenter(new THREE.Vector3());
-  root.position.sub(firstCenter);
+  // Zachovať názvy materiálov pre CAD / aluminium / matte a farebné plochy.
+  root.traverse(obj=>{
+    if(obj.isMesh && obj.material){
+      const mats=Array.isArray(obj.material)?obj.material:[obj.material];
+      mats.forEach(mat=>{
+        mat.userData.originalMaterialName=mat.name||'';
+      });
+    }
+  });
+
+  // Model držíme vo vlastnom pivot-e, aby X/Y/Z rotácia bola viditeľná aj v preview.
+  if(typeof modelPivot==='undefined'){
+    modelPivot=new THREE.Group();
+    scene.add(modelPivot);
+  }else if(!modelPivot.parent){
+    scene.add(modelPivot);
+  }
+
+  const rawBox=new THREE.Box3().setFromObject(root);
+  const rawCenter=rawBox.getCenter(new THREE.Vector3());
+  root.position.sub(rawCenter);
 
   modelPivot.add(root);
+
+  // Hrany po vycentrovaní.
   buildEdges(root);
   applyMaterialMode();
 
-  const box=new THREE.Box3().setFromObject(modelPivot);
   center.set(0,0,0);
+  const box=new THREE.Box3().setFromObject(modelPivot);
   const s=box.getSize(new THREE.Vector3());
   sizeMax=Math.max(s.x,s.y,s.z);
-  controls.target.copy(center);
+
+  controls.target.set(0,0,0);
   applyOrientationToViewer();
   setView('iso');
+
   loading.style.display='none';
-},undefined,e=>{console.error(e);loading.textContent='CHYBA: farebný GLB sa nepodarilo načítať.'});
+},undefined,e=>{
+  console.error(e);
+  loading.textContent='CHYBA: farebný GLB sa nepodarilo načítať.';
+});
 
 document.querySelectorAll('[data-view]').forEach(b=>b.addEventListener('click',()=>setView(b.dataset.view)));
 document.getElementById('projectionBtn').addEventListener('click',()=>{if(currentView==='iso'){isoOrtho=!isoOrtho;setView('iso')}});
@@ -362,10 +385,10 @@ document.getElementById('freeArBtn').addEventListener('click',()=>{
     localStorage.setItem('CA_0017_X_A_DT_MATERIAL_V102',currentMaterialMode);
     localStorage.setItem('CA_0017_X_A_DT_HIGHLIGHTS_V102',String(highlightsEnabled));
   }catch(e){}
-  location.href='./free-ar.html?v=1051';
+  location.href='./free-ar.html?v=106';
 });
 
-document.getElementById('markerBtn').addEventListener('click',()=>location.href='./ar.html?v=1051');
+document.getElementById('markerBtn').addEventListener('click',()=>location.href='./ar.html?v=106');
 
 function resize(){const w=wrap.clientWidth,h=wrap.clientHeight;renderer.setSize(w,h,false);pcam.aspect=w/h;pcam.updateProjectionMatrix();if(root)configureOrtho()}
 addEventListener('resize',resize);resize();

@@ -1,14 +1,18 @@
-CNC AR CLEAN v105.1
-
-Nahraj vsetky subory priamo do rootu GitHub repository cnc-ar.
+CNC AR CLEAN v106
 
 Hlavna stranka:
-https://ppa-creator.github.io/cnc-ar/?v=1051
+https://ppa-creator.github.io/cnc-ar/?v=106
 
-Tato verzia:
-- vracia stabilny hlavny 3D viewer z v104
-- free-ar.html zostava samostatny WebXR experiment
-- ZOBRAZIT V AR len odovzda material/farby/orientaciu a otvori free-ar.html
-- hlavny GLB loader sa nemenil
+Novinky:
+- opraveny viditelny model v hlavnom 3D preview
+- X/Y/Z orientacia sa da vizualne kontrolovat
+- vlastny WebXR AR PREVIEW
+- priehladnost priamo v AR
+- jemne posuny X/Y/Z po 5 mm
+- jemne rotacie RX/RY/RZ po 2 stupne
+- ZAFIXOVAT / UPRAVIT POLOHU
+- model po zafixovani ostane v world-space a mozes okolo neho chodit
 
-Subory nepremenovavaj.
+Poznamka:
+AR stale potrebuje aspon prvu orientacnu referenciu v priestore (hit-test na povrch).
+Po vlozeni sa model moze doladit aj mimo povrchu pomocou X/Y/Z.
