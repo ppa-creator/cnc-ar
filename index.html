@@ -298,9 +298,9 @@
 
     <div class="note">
       Sivý model používa tmavé geometrické hrany pre lepšiu čitateľnosť.
-      Priehľadnosť je príprava na vizuálne porovnávanie CAD modelu s reálnym dielcom.
-      AR zatiaľ model voľne umiestni do priestoru; ďalší krok bude presné zarovnanie
-      podľa referenčného markeru na stroji alebo prípravku.
+      FRONT / TOP / RIGHT používajú ortografické premietanie bez perspektívneho skreslenia,
+      ISO používa perspektívne zobrazenie. Priehľadnosť je príprava na vizuálne porovnávanie
+      CAD modelu s reálnym dielcom. AR zatiaľ model voľne umiestni do priestoru.
     </div>
 
   </section>
@@ -341,14 +341,26 @@
   const scene = new THREE.Scene();
   scene.background = new THREE.Color(0xffffff);
 
-  const camera = new THREE.PerspectiveCamera(28, 1, 0.1, 10000);
+  // Perspektívna kamera pre ISO a voľné otáčanie
+  const perspectiveCamera = new THREE.PerspectiveCamera(28, 1, 0.1, 10000);
 
-  const controls = new OrbitControls(camera, renderer.domElement);
+  // Ortografická kamera pre technické pohľady FRONT / TOP / RIGHT
+  const orthoCamera = new THREE.OrthographicCamera(-100, 100, 100, -100, 0.1, 10000);
+
+  let activeCamera = perspectiveCamera;
+
+  const controls = new OrbitControls(activeCamera, renderer.domElement);
   controls.enableDamping = true;
   controls.dampingFactor = 0.08;
   controls.screenSpacePanning = true;
   controls.minDistance = 20;
   controls.maxDistance = 3000;
+
+  function setActiveCamera(camera){
+    activeCamera = camera;
+    controls.object = activeCamera;
+    controls.update();
+  }
 
   // mäkké štúdiové osvetlenie na bielom pozadí
   scene.add(new THREE.HemisphereLight(0xffffff, 0xd8d8d8, 2.1));
@@ -430,37 +442,72 @@
     controls.target.copy(modelCenter);
 
     const distance = modelSize * 2.35;
-    camera.near = Math.max(modelSize / 1000, 0.1);
-    camera.far = modelSize * 30;
-    camera.updateProjectionMatrix();
+    perspectiveCamera.near = Math.max(modelSize / 1000, 0.1);
+    perspectiveCamera.far = modelSize * 30;
+    perspectiveCamera.updateProjectionMatrix();
 
+    configureOrthoForModel();
     setView('iso', distance);
+  }
+
+  function configureOrthoForModel(){
+    const aspect = Math.max(wrap.clientWidth / Math.max(wrap.clientHeight, 1), 0.1);
+
+    // Rezerva okolo dielca, aby sa model nedotýkal okrajov.
+    const halfHeight = modelSize * 0.72;
+    const halfWidth = halfHeight * aspect;
+
+    orthoCamera.left = -halfWidth;
+    orthoCamera.right = halfWidth;
+    orthoCamera.top = halfHeight;
+    orthoCamera.bottom = -halfHeight;
+    orthoCamera.near = Math.max(modelSize / 1000, 0.1);
+    orthoCamera.far = modelSize * 30;
+    orthoCamera.zoom = 1;
+    orthoCamera.updateProjectionMatrix();
   }
 
   function setView(view, forcedDistance=null){
     if (!modelRoot) return;
 
-    const distance = forcedDistance ?? camera.position.distanceTo(controls.target);
+    const distance = forcedDistance ?? perspectiveCamera.position.distanceTo(controls.target);
     const d = Math.max(distance, modelSize * 1.6);
 
     if (view === 'front') {
-      camera.position.set(modelCenter.x, modelCenter.y - d, modelCenter.z);
-      camera.up.set(0,0,1);
+      configureOrthoForModel();
+      orthoCamera.position.set(modelCenter.x, modelCenter.y - d, modelCenter.z);
+      orthoCamera.up.set(0,0,1);
+      orthoCamera.lookAt(modelCenter);
+      setActiveCamera(orthoCamera);
+
     } else if (view === 'top') {
-      camera.position.set(modelCenter.x, modelCenter.y, modelCenter.z + d);
-      camera.up.set(0,1,0);
+      configureOrthoForModel();
+      orthoCamera.position.set(modelCenter.x, modelCenter.y, modelCenter.z + d);
+      orthoCamera.up.set(0,1,0);
+      orthoCamera.lookAt(modelCenter);
+      setActiveCamera(orthoCamera);
+
     } else if (view === 'right') {
-      camera.position.set(modelCenter.x + d, modelCenter.y, modelCenter.z);
-      camera.up.set(0,0,1);
+      configureOrthoForModel();
+      orthoCamera.position.set(modelCenter.x + d, modelCenter.y, modelCenter.z);
+      orthoCamera.up.set(0,0,1);
+      orthoCamera.lookAt(modelCenter);
+      setActiveCamera(orthoCamera);
+
     } else {
-      // ISO + RESET
+      // ISO + RESET = perspektívne zobrazenie
       const k = d / Math.sqrt(3);
-      camera.position.set(
+      perspectiveCamera.position.set(
         modelCenter.x + k,
         modelCenter.y - k,
         modelCenter.z + k * 0.85
       );
-      camera.up.set(0,0,1);
+      perspectiveCamera.up.set(0,0,1);
+      perspectiveCamera.near = Math.max(modelSize / 1000, 0.1);
+      perspectiveCamera.far = modelSize * 30;
+      perspectiveCamera.updateProjectionMatrix();
+      perspectiveCamera.lookAt(modelCenter);
+      setActiveCamera(perspectiveCamera);
     }
 
     controls.target.copy(modelCenter);
@@ -559,8 +606,13 @@
     const h = wrap.clientHeight;
 
     renderer.setSize(w, h, false);
-    camera.aspect = w / h;
-    camera.updateProjectionMatrix();
+
+    perspectiveCamera.aspect = w / h;
+    perspectiveCamera.updateProjectionMatrix();
+
+    if (modelRoot) {
+      configureOrthoForModel();
+    }
   }
 
   window.addEventListener('resize', resize);
@@ -569,7 +621,7 @@
   function animate(){
     requestAnimationFrame(animate);
     controls.update();
-    renderer.render(scene, camera);
+    renderer.render(scene, activeCamera);
   }
 
   animate();
