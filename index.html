@@ -5,73 +5,99 @@
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <title>CA_0017_X_A_DT</title>
 
+  <!-- model-viewer používame iba pre natívny AR režim -->
   <script type="module"
     src="https://cdn.jsdelivr.net/npm/@google/model-viewer@4.0.0/dist/model-viewer.min.js">
   </script>
 
+  <script type="importmap">
+  {
+    "imports": {
+      "three": "https://cdn.jsdelivr.net/npm/three@0.180.0/build/three.module.js",
+      "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.180.0/examples/jsm/"
+    }
+  }
+  </script>
+
   <style>
+    * { box-sizing: border-box; }
+
     body{
       margin:0;
-      font-family:system-ui;
-      background:#f4f4f5;
-      color:#171717;
+      font-family:system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
+      background:#f5f5f5;
+      color:#151515;
     }
 
     .app{
-      max-width:1100px;
-      margin:auto;
+      max-width:1180px;
+      margin:0 auto;
       padding:16px;
     }
 
     .head{
       display:flex;
       justify-content:space-between;
-      gap:12px;
+      align-items:flex-start;
+      gap:16px;
       flex-wrap:wrap;
+      margin-bottom:14px;
     }
 
     .title{
-      font-size:22px;
-      font-weight:800;
+      font-size:24px;
+      line-height:1.1;
+      font-weight:850;
+      letter-spacing:.01em;
     }
 
     .sub{
       color:#666;
-      margin-top:4px;
+      margin-top:6px;
+      font-size:15px;
     }
 
     .badge{
-      padding:7px 10px;
+      padding:9px 13px;
       border-radius:999px;
       background:#fff3cd;
-      border:1px solid #ead58a;
+      border:1px solid #e4c967;
       font-size:12px;
-      font-weight:800;
+      font-weight:850;
     }
 
     .card{
-      background:white;
-      border:1px solid #ddd;
+      background:#fff;
+      border:1px solid #dedede;
       border-radius:18px;
       overflow:hidden;
-      margin-top:14px;
     }
 
     .viewer{
-      height:min(68vh,700px);
-      min-height:420px;
-
-      /* tmavšie CNC pozadie */
-      background:
-        radial-gradient(circle at 50% 35%, #666 0%, #343434 48%, #181818 100%);
+      position:relative;
+      height:min(68vh,720px);
+      min-height:430px;
+      background:#fff;
+      border-bottom:1px solid #e7e7e7;
     }
 
-    model-viewer{
+    #threeCanvas{
+      display:block;
       width:100%;
       height:100%;
+      touch-action:none;
+      background:#fff;
+    }
 
-      /* mierne zvýšenie kontrastu */
-      filter:contrast(1.12);
+    .loading{
+      position:absolute;
+      inset:0;
+      display:grid;
+      place-items:center;
+      background:#fff;
+      color:#666;
+      font-weight:700;
+      z-index:2;
     }
 
     .toolbar{
@@ -79,133 +105,134 @@
       gap:8px;
       flex-wrap:wrap;
       padding:12px;
-      border-top:1px solid #e5e5e5;
+      background:#fff;
+      border-bottom:1px solid #ededed;
     }
 
-    .toolbar button,
-    .arbtn{
-      border:1px solid #ccc;
-      background:white;
-      padding:11px 14px;
-      border-radius:10px;
-      font-weight:700;
+    .toolbar button{
       min-height:44px;
+      padding:10px 14px;
+      border:1px solid #d2d2d2;
+      border-radius:10px;
+      background:#fff;
+      color:#151515;
+      font-weight:750;
+      cursor:pointer;
     }
 
-    .toolbar button:active{
-      background:#e7e7e7;
+    .toolbar button:hover{
+      background:#f5f5f5;
     }
 
-    .arbtn{
-      background:#111;
-      color:white;
-      border-color:#111;
+    .toolbar button.active{
+      background:#eeeeee;
+      border-color:#b8b8b8;
+    }
+
+    .toolbar .ar{
+      background:#ffc82e;
+      border-color:#e2ae13;
+      margin-left:auto;
+    }
+
+    .toolbar .ar:hover{
+      background:#f4bd21;
     }
 
     .grid{
       display:grid;
-      grid-template-columns:repeat(4,1fr);
+      grid-template-columns:repeat(4,minmax(0,1fr));
       gap:10px;
       padding:14px;
     }
 
     .info{
-      background:#f8f8f8;
+      background:#f7f7f7;
       border-radius:12px;
-      padding:12px;
+      padding:13px;
+      min-width:0;
     }
 
     .k{
-      font-size:11px;
       color:#777;
+      font-size:11px;
       text-transform:uppercase;
+      letter-spacing:.03em;
     }
 
     .v{
-      font-weight:750;
-      margin-top:4px;
+      margin-top:5px;
+      font-weight:800;
+      overflow-wrap:anywhere;
     }
 
     .note{
       padding:0 14px 16px;
-      color:#555;
+      color:#5d5d5d;
       font-size:13px;
+      line-height:1.45;
     }
 
-    @media(max-width:650px){
-      .grid{
-        grid-template-columns:repeat(2,1fr);
-      }
+    /* model-viewer zostáva skrytý; používa sa len na activateAR() */
+    #arViewer{
+      position:absolute;
+      width:1px;
+      height:1px;
+      opacity:0;
+      pointer-events:none;
+      overflow:hidden;
+    }
 
+    @media(max-width:700px){
+      .app{ padding:10px; }
+      .title{ font-size:20px; }
+      .sub{ font-size:13px; }
       .viewer{
         min-height:390px;
+        height:58vh;
+      }
+      .grid{
+        grid-template-columns:repeat(2,minmax(0,1fr));
+      }
+      .toolbar .ar{
+        margin-left:0;
       }
     }
   </style>
 </head>
 
 <body>
-
 <div class="app">
 
   <div class="head">
     <div>
       <div class="title">CA_0017_X_A_DT</div>
-      <div class="sub">
-        CNC operátorský 3D prototyp · DOOSAN DVF6500
-      </div>
+      <div class="sub">CNC operátorský 3D prototyp · DOOSAN DVF6500</div>
     </div>
-
     <div class="badge">PROTOTYPE</div>
   </div>
 
   <section class="card">
 
-    <div class="viewer">
-
-      <model-viewer
-        id="mv"
-        src="CA_0017_X_A_DT.glb"
-        alt="3D model dielca"
-
-        camera-controls
-        touch-action="pan-y"
-
-        shadow-intensity="1.4"
-        shadow-softness="0.7"
-
-        exposure="0.75"
-
-        environment-image="neutral"
-
-        ar
-        ar-modes="webxr scene-viewer quick-look"
-        ar-scale="fixed"
-
-        camera-orbit="45deg 65deg auto"
-        field-of-view="30deg">
-
-        <button
-          slot="ar-button"
-          class="arbtn"
-          style="position:absolute;right:12px;bottom:12px">
-          ZOBRAZIŤ V AR
-        </button>
-
-      </model-viewer>
-
+    <div class="viewer" id="viewerWrap">
+      <canvas id="threeCanvas"></canvas>
+      <div class="loading" id="loading">Načítavam 3D model…</div>
     </div>
 
     <div class="toolbar">
-      <button data-view="iso">ISO</button>
-      <button data-view="front">FRONT</button>
-      <button data-view="top">TOP</button>
-      <button data-view="right">RIGHT</button>
-      <button data-view="reset">RESET</button>
+      <button type="button" data-view="iso">ISO</button>
+      <button type="button" data-view="front">FRONT</button>
+      <button type="button" data-view="top">TOP</button>
+      <button type="button" data-view="right">RIGHT</button>
+      <button type="button" data-view="reset">RESET</button>
+
+      <button type="button" id="edgesBtn" class="active">HRANY</button>
+      <button type="button" id="solidBtn" class="active">SOLID</button>
+
+      <button type="button" id="arBtn" class="ar">ZOBRAZIŤ V AR</button>
     </div>
 
     <div class="grid">
-
       <div class="info">
         <div class="k">Revízia</div>
         <div class="v">A</div>
@@ -225,40 +252,268 @@
         <div class="k">Stav</div>
         <div class="v">Prototyp</div>
       </div>
-
     </div>
 
     <div class="note">
-      AR v tejto verzii umiestni model do priestoru.
-      Presné prekrytie na upnutý diel bude ďalšia fáza s referenčným markerom.
+      Sivý model používa tmavé geometrické hrany pre lepšiu čitateľnosť.
+      AR v tejto verzii umiestni model do priestoru; presné prekrytie na upnutý diel
+      bude ďalšia fáza s referenčným markerom.
     </div>
 
   </section>
+
+  <model-viewer
+    id="arViewer"
+    src="CA_0017_X_A_DT.glb"
+    ar
+    ar-scale="fixed"
+    ar-modes="webxr scene-viewer quick-look">
+  </model-viewer>
+
 </div>
 
-<script>
-  const mv = document.getElementById('mv');
+<script type="module">
+  import * as THREE from 'three';
+  import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+  import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 
-  const views = {
-    iso:   '45deg 65deg auto',
-    front: '0deg 90deg auto',
-    top:   '0deg 0deg auto',
-    right: '90deg 90deg auto',
-    reset: '45deg 65deg auto'
-  };
+  const canvas = document.getElementById('threeCanvas');
+  const wrap = document.getElementById('viewerWrap');
+  const loading = document.getElementById('loading');
 
-  document.querySelectorAll('[data-view]').forEach(button => {
+  const renderer = new THREE.WebGLRenderer({
+    canvas,
+    antialias:true,
+    alpha:false
+  });
 
-    button.addEventListener('click', () => {
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+  renderer.outputColorSpace = THREE.SRGBColorSpace;
+  renderer.toneMapping = THREE.ACESFilmicToneMapping;
+  renderer.toneMappingExposure = 1.05;
+  renderer.setClearColor(0xffffff, 1);
+  renderer.shadowMap.enabled = true;
+  renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 
-      mv.cameraOrbit = views[button.dataset.view];
-      mv.fieldOfView = '30deg';
-      mv.jumpCameraToGoal();
+  const scene = new THREE.Scene();
+  scene.background = new THREE.Color(0xffffff);
 
+  const camera = new THREE.PerspectiveCamera(28, 1, 0.1, 10000);
+
+  const controls = new OrbitControls(camera, renderer.domElement);
+  controls.enableDamping = true;
+  controls.dampingFactor = 0.08;
+  controls.screenSpacePanning = true;
+  controls.minDistance = 20;
+  controls.maxDistance = 3000;
+
+  // mäkké štúdiové osvetlenie na bielom pozadí
+  scene.add(new THREE.HemisphereLight(0xffffff, 0xd8d8d8, 2.1));
+
+  const key = new THREE.DirectionalLight(0xffffff, 3.3);
+  key.position.set(400, 550, 700);
+  key.castShadow = true;
+  scene.add(key);
+
+  const fill = new THREE.DirectionalLight(0xffffff, 1.7);
+  fill.position.set(-500, 250, 300);
+  scene.add(fill);
+
+  const rim = new THREE.DirectionalLight(0xffffff, 1.2);
+  rim.position.set(200, 150, -500);
+  scene.add(rim);
+
+  let modelRoot = null;
+  let edgeGroup = null;
+  let modelCenter = new THREE.Vector3();
+  let modelSize = 1;
+  let solidVisible = true;
+  let edgesVisible = true;
+
+  const grayMaterial = new THREE.MeshStandardMaterial({
+    color:0xb8bcc1,
+    roughness:0.52,
+    metalness:0.12
+  });
+
+  const edgeMaterial = new THREE.LineBasicMaterial({
+    color:0x2f3337,
+    transparent:true,
+    opacity:0.92
+  });
+
+  function buildEdges(root){
+    edgeGroup = new THREE.Group();
+    edgeGroup.name = 'CAD_EDGES';
+
+    root.traverse(obj => {
+      if (!obj.isMesh || !obj.geometry) return;
+
+      // 25° odstráni väčšinu triangulačných čiar a ponechá CAD hrany.
+      const edgesGeo = new THREE.EdgesGeometry(obj.geometry, 25);
+      const lines = new THREE.LineSegments(edgesGeo, edgeMaterial);
+
+      lines.position.copy(obj.position);
+      lines.quaternion.copy(obj.quaternion);
+      lines.scale.copy(obj.scale);
+
+      if (obj.parent === root) {
+        edgeGroup.add(lines);
+      } else {
+        // Zachovanie transformácie aj pri vnorených meshoch.
+        obj.updateWorldMatrix(true, false);
+        const m = obj.matrixWorld.clone();
+        root.updateWorldMatrix(true, false);
+        const rootInv = root.matrixWorld.clone().invert();
+        m.premultiply(rootInv);
+        lines.matrixAutoUpdate = false;
+        lines.matrix.copy(m);
+        edgeGroup.add(lines);
+      }
     });
 
-  });
-</script>
+    root.add(edgeGroup);
+  }
 
+  function fitModel(){
+    const box = new THREE.Box3().setFromObject(modelRoot);
+    const size = box.getSize(new THREE.Vector3());
+    box.getCenter(modelCenter);
+    modelSize = Math.max(size.x, size.y, size.z);
+
+    controls.target.copy(modelCenter);
+
+    const distance = modelSize * 2.35;
+    camera.near = Math.max(modelSize / 1000, 0.1);
+    camera.far = modelSize * 30;
+    camera.updateProjectionMatrix();
+
+    setView('iso', distance);
+  }
+
+  function setView(view, forcedDistance=null){
+    if (!modelRoot) return;
+
+    const distance = forcedDistance ?? camera.position.distanceTo(controls.target);
+    const d = Math.max(distance, modelSize * 1.6);
+
+    if (view === 'front') {
+      camera.position.set(modelCenter.x, modelCenter.y - d, modelCenter.z);
+      camera.up.set(0,0,1);
+    } else if (view === 'top') {
+      camera.position.set(modelCenter.x, modelCenter.y, modelCenter.z + d);
+      camera.up.set(0,1,0);
+    } else if (view === 'right') {
+      camera.position.set(modelCenter.x + d, modelCenter.y, modelCenter.z);
+      camera.up.set(0,0,1);
+    } else {
+      // ISO + RESET
+      const k = d / Math.sqrt(3);
+      camera.position.set(
+        modelCenter.x + k,
+        modelCenter.y - k,
+        modelCenter.z + k * 0.85
+      );
+      camera.up.set(0,0,1);
+    }
+
+    controls.target.copy(modelCenter);
+    controls.update();
+  }
+
+  const loader = new GLTFLoader();
+
+  loader.load(
+    'CA_0017_X_A_DT.glb',
+    gltf => {
+      modelRoot = gltf.scene;
+
+      modelRoot.traverse(obj => {
+        if (obj.isMesh) {
+          obj.material = grayMaterial;
+          obj.castShadow = true;
+          obj.receiveShadow = true;
+        }
+      });
+
+      scene.add(modelRoot);
+      buildEdges(modelRoot);
+      fitModel();
+
+      loading.style.display = 'none';
+    },
+    undefined,
+    err => {
+      console.error(err);
+      loading.textContent = '3D model sa nepodarilo načítať.';
+    }
+  );
+
+  document.querySelectorAll('[data-view]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const view = btn.dataset.view;
+      setView(view === 'reset' ? 'iso' : view, modelSize * 2.35);
+    });
+  });
+
+  const edgesBtn = document.getElementById('edgesBtn');
+  const solidBtn = document.getElementById('solidBtn');
+
+  edgesBtn.addEventListener('click', () => {
+    edgesVisible = !edgesVisible;
+    if (edgeGroup) edgeGroup.visible = edgesVisible;
+    edgesBtn.classList.toggle('active', edgesVisible);
+  });
+
+  solidBtn.addEventListener('click', () => {
+    solidVisible = !solidVisible;
+
+    if (modelRoot) {
+      modelRoot.traverse(obj => {
+        if (obj.isMesh) obj.visible = solidVisible;
+      });
+
+      // hrany sú child modelRoot, preto ich po traverse nastavíme späť
+      if (edgeGroup) edgeGroup.visible = edgesVisible;
+    }
+
+    solidBtn.classList.toggle('active', solidVisible);
+  });
+
+  document.getElementById('arBtn').addEventListener('click', async () => {
+    const arViewer = document.getElementById('arViewer');
+
+    try {
+      if (typeof arViewer.activateAR === 'function') {
+        await arViewer.activateAR();
+      } else {
+        alert('AR režim nie je na tomto zariadení dostupný.');
+      }
+    } catch (e) {
+      console.error(e);
+      alert('AR sa nepodarilo spustiť na tomto zariadení.');
+    }
+  });
+
+  function resize(){
+    const w = wrap.clientWidth;
+    const h = wrap.clientHeight;
+
+    renderer.setSize(w, h, false);
+    camera.aspect = w / h;
+    camera.updateProjectionMatrix();
+  }
+
+  window.addEventListener('resize', resize);
+  resize();
+
+  function animate(){
+    requestAnimationFrame(animate);
+    controls.update();
+    renderer.render(scene, camera);
+  }
+
+  animate();
+</script>
 </body>
 </html>
