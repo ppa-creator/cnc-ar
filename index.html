@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
-  <title>CA_0017_X_A_DT · CNC 3D Viewer v103</title>
+  <title>CA_0017_X_A_DT · CNC 3D Viewer v104</title>
 
   <script type="module" src="https://cdn.jsdelivr.net/npm/@google/model-viewer@4.0.0/dist/model-viewer.min.js"></script>
   <script type="importmap">
@@ -56,7 +56,7 @@
 <div class="app">
   <div class="head">
     <div><div class="title">CA_0017_X_A_DT</div><div class="sub">CNC operátorský 3D viewer · DOOSAN DVF6500</div></div>
-    <div class="badge">CLEAN BUILD v103</div>
+    <div class="badge">CLEAN BUILD v104</div>
   </div>
 
   <section class="card">
@@ -328,7 +328,7 @@ function setArPrepStatus(text,ok=false){
 
 async function prepareArModel(){
   const serial=++arPrepareSerial;
-  setArPrepStatus('pripravujem natočenie…',false);
+  setArPrepStatus('fyzicky prepočítavam geometriu…',false);
 
   try{
     const src=sourceArFile();
@@ -338,56 +338,128 @@ async function prepareArModel(){
 
     if(serial!==arPrepareSerial)return;
 
-    const arScene=gltf.scene;
-    arScene.updateMatrixWorld(true);
+    const sourceScene=gltf.scene;
+    sourceScene.updateMatrixWorld(true);
 
-    // Rovnaký princíp ako preview: model najprv vycentrujeme a potom otočíme.
-    const bbox=new THREE.Box3().setFromObject(arScene);
-    const c=bbox.getCenter(new THREE.Vector3());
+    // Stred pôvodného modelu v jeho svetových súradniciach.
+    const sourceBox=new THREE.Box3().setFromObject(sourceScene);
+    const sourceCenter=sourceBox.getCenter(new THREE.Vector3());
 
-    const pivot=new THREE.Group();
-    arScene.position.sub(c);
-    pivot.add(arScene);
-    pivot.rotation.set(
-      THREE.MathUtils.degToRad(arOrientation.x),
-      THREE.MathUtils.degToRad(arOrientation.y),
-      THREE.MathUtils.degToRad(arOrientation.z),
-      'XYZ'
+    // Rotácia, ktorú zvolil používateľ.
+    const rotationMatrix=new THREE.Matrix4().makeRotationFromEuler(
+      new THREE.Euler(
+        THREE.MathUtils.degToRad(arOrientation.x),
+        THREE.MathUtils.degToRad(arOrientation.y),
+        THREE.MathUtils.degToRad(arOrientation.z),
+        'XYZ'
+      )
     );
-    pivot.updateMatrixWorld(true);
 
-    // Po rotácii centrovať X/Z a položiť najnižší bod na Y=0.
-    // Model-viewer tak dostane už hotovú fyzickú orientáciu geometrie.
-    const rotatedBox=new THREE.Box3().setFromObject(pivot);
-    const rc=rotatedBox.getCenter(new THREE.Vector3());
-    pivot.position.x-=rc.x;
-    pivot.position.z-=rc.z;
-    pivot.position.y-=rotatedBox.min.y;
-    pivot.updateMatrixWorld(true);
+    const toOrigin=new THREE.Matrix4().makeTranslation(
+      -sourceCenter.x,
+      -sourceCenter.y,
+      -sourceCenter.z
+    );
+
+    // R * T(-center)
+    const userTransform=new THREE.Matrix4().multiplyMatrices(rotationMatrix,toOrigin);
+
+    // Vytvoríme úplne novú scénu s IDENTITY transformáciami.
+    // Každý vertex dostane world transform pôvodného meshu + používateľskú rotáciu.
+    const bakedScene=new THREE.Scene();
+
+    sourceScene.traverse(obj=>{
+      if(!(obj.isMesh || obj.isLineSegments || obj.isLine) || !obj.geometry)return;
+
+      const geometry=obj.geometry.clone();
+
+      // lokálne vertexy -> pôvodný svet -> centrovanie -> používateľská rotácia
+      const fullMatrix=new THREE.Matrix4().multiplyMatrices(userTransform,obj.matrixWorld);
+      geometry.applyMatrix4(fullMatrix);
+
+      let baked;
+      if(obj.isMesh){
+        const mat=Array.isArray(obj.material)
+          ? obj.material.map(m=>m.clone())
+          : obj.material.clone();
+        baked=new THREE.Mesh(geometry,mat);
+      }else if(obj.isLineSegments){
+        const mat=Array.isArray(obj.material)
+          ? obj.material.map(m=>m.clone())
+          : obj.material.clone();
+        baked=new THREE.LineSegments(geometry,mat);
+      }else{
+        const mat=Array.isArray(obj.material)
+          ? obj.material.map(m=>m.clone())
+          : obj.material.clone();
+        baked=new THREE.Line(geometry,mat);
+      }
+
+      baked.name=obj.name || 'BAKED';
+      baked.position.set(0,0,0);
+      baked.rotation.set(0,0,0);
+      baked.scale.set(1,1,1);
+      baked.updateMatrix();
+      bakedScene.add(baked);
+    });
+
+    bakedScene.updateMatrixWorld(true);
+
+    // Model po fyzickej rotácii položíme spodnou hranou na AR podlahu
+    // a vycentrujeme v horizontálnej X/Z rovine.
+    let bakedBox=new THREE.Box3().setFromObject(bakedScene);
+    const bakedCenter=bakedBox.getCenter(new THREE.Vector3());
+    const floorShift=new THREE.Matrix4().makeTranslation(
+      -bakedCenter.x,
+      -bakedBox.min.y,
+      -bakedCenter.z
+    );
+
+    bakedScene.children.forEach(obj=>{
+      obj.geometry.applyMatrix4(floorShift);
+      obj.position.set(0,0,0);
+      obj.rotation.set(0,0,0);
+      obj.scale.set(1,1,1);
+      obj.updateMatrix();
+    });
+
+    bakedScene.updateMatrixWorld(true);
+
+    // Diagnostická kontrola: výsledný root už nemá žiadnu používateľskú rotáciu.
+    const finalBox=new THREE.Box3().setFromObject(bakedScene);
+    const finalSize=finalBox.getSize(new THREE.Vector3());
 
     const exporter=new GLTFExporter();
     const arrayBuffer=await new Promise((resolve,reject)=>{
       exporter.parse(
-        pivot,
+        bakedScene,
         result=>resolve(result),
         err=>reject(err),
-        {binary:true,onlyVisible:true}
+        {
+          binary:true,
+          onlyVisible:true,
+          trs:false
+        }
       );
     });
 
     if(serial!==arPrepareSerial)return;
 
     if(preparedArUrl)URL.revokeObjectURL(preparedArUrl);
-    preparedArUrl=URL.createObjectURL(new Blob([arrayBuffer],{type:'model/gltf-binary'}));
+    preparedArUrl=URL.createObjectURL(
+      new Blob([arrayBuffer],{type:'model/gltf-binary'})
+    );
 
     const arViewer=document.getElementById('arViewer');
+
     await new Promise((resolve,reject)=>{
       const onLoad=()=>{cleanup();resolve()};
-      const onError=()=>{cleanup();reject(new Error('model-viewer nenačítal pripravený AR model'))};
+      const onError=()=>{cleanup();reject(new Error('model-viewer nenačítal fyzicky otočený GLB'))};
       const cleanup=()=>{
         arViewer.removeEventListener('load',onLoad);
         arViewer.removeEventListener('error',onError);
       };
+
       arViewer.addEventListener('load',onLoad,{once:true});
       arViewer.addEventListener('error',onError,{once:true});
       arViewer.src=preparedArUrl;
@@ -396,12 +468,17 @@ async function prepareArModel(){
     if(serial!==arPrepareSerial)return;
 
     setArPrepStatus(
-      `pripravený ✓ &nbsp; X ${arOrientation.x}° · Y ${arOrientation.y}° · Z ${arOrientation.z}°`,
+      `pripravený ✓ &nbsp; X ${arOrientation.x}° · Y ${arOrientation.y}° · Z ${arOrientation.z}°`+
+      ` &nbsp; (${finalSize.x.toFixed(3)} × ${finalSize.y.toFixed(3)} × ${finalSize.z.toFixed(3)} m)`,
       true
     );
+
   }catch(err){
-    console.error('AR prepare error',err);
-    setArPrepStatus('chyba prípravy – obnov stránku',false);
+    console.error('AR vertex bake error',err);
+    setArPrepStatus(
+      'chyba fyzického prepočtu – obnov stránku',
+      false
+    );
   }
 }
 
@@ -461,7 +538,7 @@ nativeArBtn.textContent='AR PRIPRAVUJEM…';
 
 applyOrientationToViewer();
 
-document.getElementById('markerBtn').addEventListener('click',()=>location.href='./ar.html?v=103');
+document.getElementById('markerBtn').addEventListener('click',()=>location.href='./ar.html?v=104');
 
 function resize(){const w=wrap.clientWidth,h=wrap.clientHeight;renderer.setSize(w,h,false);pcam.aspect=w/h;pcam.updateProjectionMatrix();if(root)configureOrtho()}
 addEventListener('resize',resize);resize();
