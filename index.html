@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
-  <title>CA_0017_X_A_DT · CNC 3D Viewer v101</title>
+  <title>CA_0017_X_A_DT · CNC 3D Viewer v102</title>
 
   <script type="module" src="https://cdn.jsdelivr.net/npm/@google/model-viewer@4.0.0/dist/model-viewer.min.js"></script>
   <script type="importmap">
@@ -56,7 +56,7 @@
 <div class="app">
   <div class="head">
     <div><div class="title">CA_0017_X_A_DT</div><div class="sub">CNC operátorský 3D viewer · DOOSAN DVF6500</div></div>
-    <div class="badge">CLEAN BUILD v101</div>
+    <div class="badge">CLEAN BUILD v102</div>
   </div>
 
   <section class="card">
@@ -83,6 +83,7 @@
       <button type="button" class="materialBtn cad active" data-material="cad">CAD</button>
       <button type="button" class="materialBtn aluminium" data-material="aluminium">ALUMINIUM</button>
       <button type="button" class="materialBtn matte" data-material="matte">MATTE</button>
+      <button type="button" id="highlightBtn" class="materialBtn cad active">FAREBNÉ PLOCHY: ON</button>
 
       <div class="sectionLabel">VÝCHODZIA ORIENTÁCIA PRE AR</div>
       <div class="orientationBox">
@@ -105,13 +106,13 @@
       <model-viewer
         id="arViewer"
         class="arBox"
-        src="CA_0017_X_A_DT_D603_BLUE_AR_METERS.glb"
+        src="AR_cad_color.glb"
         alt="AR model CA_0017_X_A_DT"
         loading="eager"
         ar
         ar-scale="fixed"
         ar-placement="floor"
-        ar-modes="scene-viewer webxr"
+        ar-modes="webxr"
         shadow-intensity="1">
         <button type="button" slot="ar-button" class="nativeArBtn">ZOBRAZIŤ V AR</button>
       </model-viewer>
@@ -131,8 +132,7 @@
     </div>
 
     <div class="note">
-      <b>CAD</b> zachová technologické zvýraznenia, <b>ALUMINIUM</b> imituje kovový povrch a
-      <b>MATTE</b> maximalizuje čitateľnosť geometrie. Východziu orientáciu AR nastavuješ priamo
+      <b>FAREBNÉ PLOCHY</b> sú globálne: ON zachová modré Ø6,03 v CAD, ALUMINIUM aj MATTE; OFF ich vypne všade. <b>ALUMINIUM</b> imituje kovový povrch a <b>MATTE</b> maximalizuje čitateľnosť geometrie. Východziu orientáciu AR nastavuješ priamo
       otáčaním dielca X/Y/Z a uložíš ju tlačidlom <b>ULOŽIŤ PRE AR</b>. Free-placement AR zostáva
       rovnaký ako vo funkčnom builde v100.
     </div>
@@ -168,7 +168,7 @@ scene.add(new THREE.HemisphereLight(0xffffff,0xd7d7d7,2.1));
 const key=new THREE.DirectionalLight(0xffffff,3.2);key.position.set(400,550,700);scene.add(key);
 const fill=new THREE.DirectionalLight(0xffffff,1.5);fill.position.set(-450,250,300);scene.add(fill);
 
-let root=null,modelPivot=new THREE.Group(),edgesGroup=null,center=new THREE.Vector3(),sizeMax=1,solidVisible=true,edgesVisible=true,currentMaterialMode='cad';
+let root=null,modelPivot=new THREE.Group(),edgesGroup=null,center=new THREE.Vector3(),sizeMax=1,solidVisible=true,edgesVisible=true,currentMaterialMode='cad',highlightsEnabled=true;
 scene.add(modelPivot);
 const edgeMat=new THREE.LineBasicMaterial({color:0x303438,transparent:true,opacity:.92});
 
@@ -182,15 +182,15 @@ function applyMaterialMode(){
       const isD603=n.includes('D603_BLUE');
 
       if(currentMaterialMode==='aluminium'){
-        m.color.set(0xc2c6c9);
-        if('roughness' in m)m.roughness=.24;
-        if('metalness' in m)m.metalness=.82;
+        m.color.set((highlightsEnabled&&isD603)?0x2374cd:0xc4c9cd);
+        if('roughness' in m)m.roughness=(highlightsEnabled&&isD603)?.40:.23;
+        if('metalness' in m)m.metalness=(highlightsEnabled&&isD603)?.12:.86;
       }else if(currentMaterialMode==='matte'){
-        m.color.set(0xb7b9bb);
-        if('roughness' in m)m.roughness=.88;
-        if('metalness' in m)m.metalness=.02;
+        m.color.set((highlightsEnabled&&isD603)?0x2374cd:0xb7b9bb);
+        if('roughness' in m)m.roughness=(highlightsEnabled&&isD603)?.44:.88;
+        if('metalness' in m)m.metalness=(highlightsEnabled&&isD603)?.08:.02;
       }else{
-        m.color.set(isD603?0x2374cd:0xb8bcc1);
+        m.color.set((highlightsEnabled&&isD603)?0x2374cd:0xb8bcc1);
         if('roughness' in m)m.roughness=isD603?.44:.53;
         if('metalness' in m)m.metalness=.08;
       }
@@ -282,10 +282,21 @@ document.querySelectorAll('[data-material]').forEach(btn=>{
     currentMaterialMode=btn.dataset.material;
     document.querySelectorAll('[data-material]').forEach(b=>b.classList.toggle('active',b===btn));
     applyMaterialMode();
+    updateArSource();
   });
 });
 
-const ORIENT_KEY='CA_0017_X_A_DT_AR_ORIENTATION_V101';
+
+const highlightBtn=document.getElementById('highlightBtn');
+highlightBtn.addEventListener('click',()=>{
+  highlightsEnabled=!highlightsEnabled;
+  highlightBtn.textContent=`FAREBNÉ PLOCHY: ${highlightsEnabled?'ON':'OFF'}`;
+  highlightBtn.classList.toggle('active',highlightsEnabled);
+  applyMaterialMode();
+  updateArSource();
+});
+
+const ORIENT_KEY='CA_0017_X_A_DT_AR_ORIENTATION_V102';
 let arOrientation={x:0,y:0,z:0};
 
 function normDeg(v){
@@ -296,6 +307,14 @@ function normDeg(v){
 
 function orientationAttr(){
   return `${arOrientation.x}deg ${arOrientation.y}deg ${arOrientation.z}deg`;
+}
+
+function updateArSource(){
+  const arViewer=document.getElementById('arViewer');
+  if(!arViewer)return;
+  const tag=highlightsEnabled?'color':'plain';
+  const src=`AR_${currentMaterialMode}_${tag}.glb`;
+  if(arViewer.getAttribute('src')!==src) arViewer.setAttribute('src',src);
 }
 
 function applyOrientationToViewer(){
@@ -311,7 +330,7 @@ function applyOrientationToViewer(){
   if(r)r.textContent=`X ${arOrientation.x}° · Y ${arOrientation.y}° · Z ${arOrientation.z}°`;
 
   const arViewer=document.getElementById('arViewer');
-  if(arViewer)arViewer.setAttribute('orientation',orientationAttr());
+  if(arViewer){updateArSource();arViewer.setAttribute('orientation',orientationAttr());}
 }
 
 try{
@@ -347,7 +366,7 @@ document.querySelector('.nativeArBtn').addEventListener('pointerdown',applyOrien
 
 applyOrientationToViewer();
 
-document.getElementById('markerBtn').addEventListener('click',()=>location.href='./ar.html?v=101');
+document.getElementById('markerBtn').addEventListener('click',()=>location.href='./ar.html?v=102');
 
 function resize(){const w=wrap.clientWidth,h=wrap.clientHeight;renderer.setSize(w,h,false);pcam.aspect=w/h;pcam.updateProjectionMatrix();if(root)configureOrtho()}
 addEventListener('resize',resize);resize();
