@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
-  <title>CA_0017_X_A_DT - Marker AR v0.7</title>
+  <title>CA_0017_X_A_DT - Marker AR v0.8</title>
 
   <script src="https://aframe.io/releases/1.6.0/aframe.min.js"></script>
   <script src="https://raw.githack.com/AR-js-org/AR.js/master/aframe/build/aframe-ar.js"></script>
@@ -58,7 +58,66 @@
     #startup.hidden{display:none}
     #startup small{opacity:.7;max-width:320px;line-height:1.45}
 
-    a-scene{position:fixed!important;inset:0!important}
+    #arjs-video,
+    video{
+      position:fixed!important;
+      inset:0!important;
+      width:100%!important;
+      height:100%!important;
+      object-fit:cover!important;
+      z-index:-2!important;
+      background:#000!important;
+    }
+
+    canvas.a-canvas{
+      position:fixed!important;
+      inset:0!important;
+      z-index:0!important;
+      background:transparent!important;
+    }
+
+    a-scene{
+      position:fixed!important;
+      inset:0!important;
+      z-index:1!important;
+      background:transparent!important;
+    }
+
+    .adjust{
+      position:fixed;
+      left:10px;
+      right:10px;
+      bottom:64px;
+      z-index:35;
+      display:flex;
+      justify-content:center;
+      gap:8px;
+      flex-wrap:wrap;
+      pointer-events:auto;
+    }
+
+    .adjust button{
+      min-height:42px;
+      border:0;
+      border-radius:10px;
+      padding:9px 12px;
+      background:rgba(255,255,255,.94);
+      color:#111;
+      font-weight:800;
+      font-size:12px;
+      box-shadow:0 2px 10px rgba(0,0,0,.18);
+    }
+
+    .adjust .readout{
+      display:flex;
+      align-items:center;
+      padding:8px 11px;
+      border-radius:10px;
+      background:rgba(10,10,10,.78);
+      color:#fff;
+      font-size:11px;
+      font-weight:750;
+    }
   </style>
 
   <script>
@@ -168,6 +227,46 @@
       setTimeout(() => {
         if (document.querySelector('video')) hideStartup();
       }, 2500);
+
+      let heightMm = 50;
+      let scalePct = 100;
+
+      const floatRoot = document.getElementById('floatRoot');
+      const modelScale = document.getElementById('modelScale');
+      const heightReadout = document.getElementById('heightReadout');
+      const scaleReadout = document.getElementById('scaleReadout');
+
+      function applyCalibration(){
+        floatRoot.setAttribute('position', `0 ${heightMm / 100} 0`);
+
+        const s = 0.01 * (scalePct / 100);
+        modelScale.setAttribute('scale', `${s} ${s} ${s}`);
+
+        heightReadout.textContent = `${heightMm} mm nad markerom`;
+        scaleReadout.textContent = `${scalePct} %`;
+      }
+
+      document.getElementById('downBtn').addEventListener('click', () => {
+        heightMm = Math.max(0, heightMm - 10);
+        applyCalibration();
+      });
+
+      document.getElementById('upBtn').addEventListener('click', () => {
+        heightMm = Math.min(300, heightMm + 10);
+        applyCalibration();
+      });
+
+      document.getElementById('scaleDownBtn').addEventListener('click', () => {
+        scalePct = Math.max(50, scalePct - 5);
+        applyCalibration();
+      });
+
+      document.getElementById('scaleUpBtn').addEventListener('click', () => {
+        scalePct = Math.min(150, scalePct + 5);
+        applyCalibration();
+      });
+
+      applyCalibration();
     });
   </script>
 </head>
@@ -180,8 +279,8 @@
 
   <div class="hud">
     <div class="panel">
-      <div class="title">CA_0017_X_A_DT · Marker AR v0.7</div>
-      <div class="sub">100 mm HIRO marker · CAD približne 1:1</div>
+      <div class="title">CA_0017_X_A_DT · Marker AR v0.8</div>
+      <div class="sub">100 mm HIRO marker · živá kamera · CAD približne 1:1</div>
       <div class="states">
         <span id="arState" class="state">AR.JS…</span>
         <span id="cameraState" class="state">KAMERA…</span>
@@ -191,6 +290,15 @@
     </div>
 
     <a class="back" href="./">3D VIEWER</a>
+  </div>
+
+  <div class="adjust">
+    <button type="button" id="downBtn">VÝŠKA −</button>
+    <div class="readout" id="heightReadout">50 mm nad markerom</div>
+    <button type="button" id="upBtn">VÝŠKA +</button>
+    <button type="button" id="scaleDownBtn">MIERKA −</button>
+    <div class="readout" id="scaleReadout">100 %</div>
+    <button type="button" id="scaleUpBtn">MIERKA +</button>
   </div>
 
   <div class="hint">Namier kameru na celý HIRO marker.</div>
@@ -218,8 +326,10 @@
         AR.js marker width = 1 jednotka.
         Pri fyzickom markeri 100 mm: 100 mm CAD * 0.01 = 1 marker unit.
       -->
-      <a-entity rotation="-90 0 0" scale="0.01 0.01 0.01">
-        <a-entity gltf-model="#cadAsset" cnc-cad-style></a-entity>
+      <a-entity id="floatRoot" position="0 0.50 0">
+        <a-entity id="modelScale" rotation="-90 0 0" scale="0.01 0.01 0.01">
+          <a-entity gltf-model="#cadAsset" cnc-cad-style></a-entity>
+        </a-entity>
       </a-entity>
 
       <a-entity light="type:ambient; intensity:1.8; color:#ffffff"></a-entity>
