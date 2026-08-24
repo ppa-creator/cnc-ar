@@ -1,0 +1,238 @@
+<!doctype html>
+<html lang="sk">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<title>CNC Free AR v105</title>
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://cdn.jsdelivr.net/npm/three@0.180.0/build/three.module.js",
+    "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.180.0/examples/jsm/"
+  }
+}
+</script>
+<style>
+html,body{margin:0;width:100%;height:100%;overflow:hidden;background:#000;font-family:system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}
+canvas{display:block}
+.hud{position:fixed;left:10px;right:10px;top:10px;z-index:20;display:flex;gap:8px;align-items:flex-start;justify-content:space-between;pointer-events:none}
+.panel{background:rgba(10,10,10,.78);color:#fff;border-radius:12px;padding:10px 12px;max-width:min(560px,80vw)}
+.title{font-weight:850;font-size:14px}.sub{font-size:11px;opacity:.85;margin-top:4px;line-height:1.4}
+.states{display:flex;gap:5px;flex-wrap:wrap;margin-top:7px}.state{padding:4px 7px;border-radius:999px;background:#5e4b0c;color:#fff3be;font-size:10px;font-weight:850}.state.ok{background:#155e36;color:#dbffe8}
+.back{pointer-events:auto;text-decoration:none;background:#fff;color:#111;border-radius:10px;padding:10px 12px;font-size:12px;font-weight:850}
+.hint{position:fixed;left:50%;bottom:24px;transform:translateX(-50%);z-index:20;background:rgba(10,10,10,.78);color:#fff;padding:10px 14px;border-radius:999px;font-size:12px;text-align:center;max-width:calc(100vw - 24px);pointer-events:none}
+#startWrap{position:fixed;inset:0;z-index:30;display:grid;place-items:center;background:#111;color:#fff;padding:22px;text-align:center}
+#startCard{max-width:440px}#startBtn{min-height:52px;padding:12px 20px;border:0;border-radius:12px;background:#ffc82e;color:#111;font-size:16px;font-weight:900;margin-top:16px}
+#error{color:#ffb9b9;font-size:12px;margin-top:12px;line-height:1.4}
+</style>
+</head>
+<body>
+<div id="startWrap"><div id="startCard">
+  <div style="font-size:22px;font-weight:900">CNC Free AR v105</div>
+  <div style="opacity:.8;margin-top:8px;line-height:1.45">Model sa vloží v pevnej mierke 1:1. Po položení sa jeho mierka ani orientácia nemenia.</div>
+  <button id="startBtn" type="button">SPUSTIŤ AR</button>
+  <div id="error"></div>
+</div></div>
+
+<div class="hud">
+  <div class="panel">
+    <div class="title">CA_0017_X_A_DT · Free AR v105</div>
+    <div class="sub" id="configText">načítavam konfiguráciu…</div>
+    <div class="states">
+      <span id="xrState" class="state">WEBXR…</span>
+      <span id="modelState" class="state">MODEL…</span>
+      <span id="planeState" class="state">HĽADÁM ROVINU</span>
+      <span id="lockState" class="state">NEPOLOŽENÉ</span>
+    </div>
+  </div>
+  <a class="back" href="./?v=105">3D VIEWER</a>
+</div>
+<div class="hint" id="hint">Pomaly pohybuj mobilom nad stolom.</div>
+
+<script type="module">
+import * as THREE from 'three';
+import {GLTFLoader} from 'three/addons/loaders/GLTFLoader.js';
+
+const ORIENT_KEY='CA_0017_X_A_DT_AR_ORIENTATION_V102';
+const MATERIAL_KEY='CA_0017_X_A_DT_MATERIAL_V102';
+const HIGHLIGHT_KEY='CA_0017_X_A_DT_HIGHLIGHTS_V102';
+
+let orientation={x:0,y:0,z:0};
+let materialMode='cad';
+let highlights=true;
+
+try{
+  const o=localStorage.getItem(ORIENT_KEY); if(o)orientation=JSON.parse(o);
+  const m=localStorage.getItem(MATERIAL_KEY); if(m)materialMode=m;
+  const hi=localStorage.getItem(HIGHLIGHT_KEY); if(hi!==null)highlights=hi==='true';
+}catch(e){}
+
+const arFile=`AR_${materialMode}_${highlights?'color':'plain'}.glb`;
+document.getElementById('configText').textContent=
+  `${materialMode.toUpperCase()} · farby ${highlights?'ON':'OFF'} · X ${orientation.x}° Y ${orientation.y}° Z ${orientation.z}°`;
+
+const renderer=new THREE.WebGLRenderer({antialias:true,alpha:true});
+renderer.setPixelRatio(Math.min(devicePixelRatio,2));
+renderer.setSize(innerWidth,innerHeight);
+renderer.xr.enabled=true;
+renderer.outputColorSpace=THREE.SRGBColorSpace;
+renderer.toneMapping=THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure=1.05;
+renderer.domElement.style.position='fixed';
+renderer.domElement.style.inset='0';
+renderer.domElement.style.zIndex='0';
+document.body.appendChild(renderer.domElement);
+
+const scene=new THREE.Scene();
+const camera=new THREE.PerspectiveCamera();
+scene.add(new THREE.HemisphereLight(0xffffff,0x888888,2.0));
+const dl=new THREE.DirectionalLight(0xffffff,2.2); dl.position.set(1,3,2); scene.add(dl);
+
+const reticle=new THREE.Mesh(
+  new THREE.RingGeometry(.045,.055,32).rotateX(-Math.PI/2),
+  new THREE.MeshBasicMaterial({color:0xffffff})
+);
+reticle.matrixAutoUpdate=false;
+reticle.visible=false;
+scene.add(reticle);
+
+let modelTemplate=null;
+let hitTestSource=null;
+let hitTestSourceRequested=false;
+let placed=false;
+
+function setState(id,text,ok=false){
+  const el=document.getElementById(id);
+  el.textContent=text;
+  el.classList.toggle('ok',ok);
+}
+
+function applyOrientation(obj){
+  obj.rotation.set(
+    THREE.MathUtils.degToRad(orientation.x),
+    THREE.MathUtils.degToRad(orientation.y),
+    THREE.MathUtils.degToRad(orientation.z),
+    'XYZ'
+  );
+}
+
+function normalizeModel(root){
+  root.updateMatrixWorld(true);
+  const box=new THREE.Box3().setFromObject(root);
+  const center=box.getCenter(new THREE.Vector3());
+  root.position.x-=center.x;
+  root.position.z-=center.z;
+  root.position.y-=box.min.y;
+  root.updateMatrixWorld(true);
+
+  applyOrientation(root);
+  root.updateMatrixWorld(true);
+
+  const box2=new THREE.Box3().setFromObject(root);
+  const center2=box2.getCenter(new THREE.Vector3());
+  root.position.x-=center2.x;
+  root.position.z-=center2.z;
+  root.position.y-=box2.min.y;
+  root.updateMatrixWorld(true);
+
+  return root;
+}
+
+new GLTFLoader().load(arFile,gltf=>{
+  modelTemplate=normalizeModel(gltf.scene);
+  setState('modelState','MODEL ✓',true);
+},undefined,err=>{
+  console.error(err);
+  setState('modelState','MODEL CHYBA');
+  document.getElementById('error').textContent='Nepodarilo sa načítať '+arFile;
+});
+
+async function startAR(){
+  const error=document.getElementById('error');
+  error.textContent='';
+
+  if(!navigator.xr){ error.textContent='Tento prehliadač nepodporuje WebXR.'; return; }
+
+  try{
+    const supported=await navigator.xr.isSessionSupported('immersive-ar');
+    if(!supported){ error.textContent='Immersive AR nie je na tomto zariadení dostupné.'; return; }
+
+    const session=await navigator.xr.requestSession('immersive-ar',{
+      requiredFeatures:['hit-test'],
+      optionalFeatures:['dom-overlay','local-floor'],
+      domOverlay:{root:document.body}
+    });
+
+    renderer.xr.setReferenceSpaceType('local');
+    await renderer.xr.setSession(session);
+
+    document.getElementById('startWrap').style.display='none';
+    setState('xrState','WEBXR ✓',true);
+
+    session.addEventListener('select',()=>{
+      if(placed || !reticle.visible || !modelTemplate)return;
+
+      const placedModel=modelTemplate.clone(true);
+      const pos=new THREE.Vector3(), q=new THREE.Quaternion(), sc=new THREE.Vector3();
+      reticle.matrix.decompose(pos,q,sc);
+
+      // Pozícia z hit-testu, orientácia výhradne od používateľa.
+      placedModel.position.copy(pos);
+      applyOrientation(placedModel);
+
+      // Pevná metrická mierka 1:1.
+      placedModel.scale.set(1,1,1);
+      scene.add(placedModel);
+
+      placed=true;
+      reticle.visible=false;
+      setState('lockState','POLOŽENÉ ✓',true);
+      document.getElementById('hint').textContent='Model je uzamknutý. Teraz môžeš chodiť mobilom okolo neho.';
+    });
+
+    session.addEventListener('end',()=>{
+      hitTestSource=null;
+      hitTestSourceRequested=false;
+    });
+
+    renderer.setAnimationLoop(render);
+  }catch(e){
+    console.error(e);
+    error.textContent='AR sa nepodarilo spustiť: '+(e.message||e);
+  }
+}
+
+document.getElementById('startBtn').addEventListener('click',startAR);
+
+async function render(time,frame){
+  if(frame){
+    const session=renderer.xr.getSession();
+    const referenceSpace=renderer.xr.getReferenceSpace();
+
+    if(!hitTestSourceRequested){
+      const viewerSpace=await session.requestReferenceSpace('viewer');
+      hitTestSource=await session.requestHitTestSource({space:viewerSpace});
+      hitTestSourceRequested=true;
+    }
+
+    if(hitTestSource && !placed){
+      const results=frame.getHitTestResults(hitTestSource);
+      if(results.length){
+        const pose=results[0].getPose(referenceSpace);
+        reticle.visible=true;
+        reticle.matrix.fromArray(pose.transform.matrix);
+        setState('planeState','ROVINA ✓',true);
+        document.getElementById('hint').textContent='Ťukni na stôl/podlahu a model sa tam pevne položí.';
+      }else{
+        reticle.visible=false;
+        setState('planeState','HĽADÁM ROVINU');
+      }
+    }
+  }
+  renderer.render(scene,camera);
+}
+
+addEventListener('resize',()=>renderer.setSize(innerWidth,innerHeight));
+</script>
+</body>
+</html>

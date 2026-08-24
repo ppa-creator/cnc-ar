@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
-  <title>CA_0017_X_A_DT · CNC 3D Viewer v104</title>
+  <title>CA_0017_X_A_DT · CNC 3D Viewer v105</title>
 
   <script type="module" src="https://cdn.jsdelivr.net/npm/@google/model-viewer@4.0.0/dist/model-viewer.min.js"></script>
   <script type="importmap">
@@ -56,7 +56,7 @@
 <div class="app">
   <div class="head">
     <div><div class="title">CA_0017_X_A_DT</div><div class="sub">CNC operátorský 3D viewer · DOOSAN DVF6500</div></div>
-    <div class="badge">CLEAN BUILD v104</div>
+    <div class="badge">CLEAN BUILD v105</div>
   </div>
 
   <section class="card">
@@ -100,23 +100,11 @@
           Otočenie mení samotný diel, nie kameru. Nastav diel tak, ako ho chceš po prvom vložení do AR.
           Rotácia sa teraz <b>fyzicky zapečie do AR modelu</b>, takže ju AR už nemôže ignorovať.
         </div>
-        <div class="orientationHelp" id="arPrepStatus"><b>AR model:</b> pripravujem…</div>
+        <div class="orientationHelp" id="arPrepStatus"><b>AR model:</b> pevná mierka 1:1 cez WebXR v105</div>
       </div>
 
       <!-- Dôležité: toto je skutočný, viditeľný model-viewer s natívnym AR tlačidlom. -->
-      <model-viewer
-        id="arViewer"
-        class="arBox"
-        src="AR_cad_color.glb"
-        alt="AR model CA_0017_X_A_DT"
-        loading="eager"
-        ar
-        ar-scale="fixed"
-        ar-placement="floor"
-        ar-modes="webxr"
-        shadow-intensity="1">
-        <button type="button" slot="ar-button" class="nativeArBtn">ZOBRAZIŤ V AR</button>
-      </model-viewer>
+      <button type="button" id="freeArBtn" class="nativeArBtn">ZOBRAZIŤ V AR</button>
       <button type="button" id="markerBtn" class="markerBtn">MARKER AR</button>
     </div>
 
@@ -133,9 +121,9 @@
     </div>
 
     <div class="note">
-      <b>FAREBNÉ PLOCHY</b> sú globálne: ON zachová modré Ø6,03 v CAD, ALUMINIUM aj MATTE; OFF ich vypne všade. <b>ALUMINIUM</b> imituje kovový povrch a <b>MATTE</b> maximalizuje čitateľnosť geometrie. Východziu orientáciu AR nastavuješ priamo
-      otáčaním dielca X/Y/Z a uložíš ju tlačidlom <b>ULOŽIŤ PRE AR</b>. Free-placement AR zostáva
-      rovnaký ako vo funkčnom builde v100.
+      V105 používa vlastný <b>WebXR free-placement AR</b>. Po ťuknutí na rovinu sa model vloží raz
+      v pevnej mierke 1:1 a jeho scale ani orientácia sa potom nemenia. AR používa uloženú X/Y/Z
+      orientáciu, CAD/ALUMINIUM/MATTE vzhľad aj FAREBNÉ PLOCHY ON/OFF.
     </div>
   </section>
 </div>
@@ -145,7 +133,6 @@ import * as THREE from 'three';
 import {GLTFLoader} from 'three/addons/loaders/GLTFLoader.js';
 import {OrbitControls} from 'three/addons/controls/OrbitControls.js';
 import {RoomEnvironment} from 'three/addons/environments/RoomEnvironment.js';
-import {GLTFExporter} from 'three/addons/exporters/GLTFExporter.js';
 
 const canvas=document.getElementById('threeCanvas');
 const wrap=document.getElementById('viewerWrap');
@@ -282,6 +269,7 @@ range.addEventListener('input',()=>{const op=Number(range.value)/100;if(root)roo
 document.querySelectorAll('[data-material]').forEach(btn=>{
   btn.addEventListener('click',()=>{
     currentMaterialMode=btn.dataset.material;
+    try{localStorage.setItem('CA_0017_X_A_DT_MATERIAL_V102',currentMaterialMode)}catch(e){}
     document.querySelectorAll('[data-material]').forEach(b=>b.classList.toggle('active',b===btn));
     applyMaterialMode();
     schedulePrepareAr();
@@ -312,196 +300,13 @@ function sourceArFile(){
   return `AR_${currentMaterialMode}_${tag}.glb`;
 }
 
-let preparedArUrl=null;
-let arPrepareSerial=0;
-let arPrepareTimer=null;
-
-function setArPrepStatus(text,ok=false){
-  const el=document.getElementById('arPrepStatus');
-  if(el)el.innerHTML=`<b>AR model:</b> ${text}`;
-  const btn=document.querySelector('.nativeArBtn');
-  if(btn){
-    btn.disabled=!ok;
-    btn.textContent=ok?'ZOBRAZIŤ V AR':'AR PRIPRAVUJEM…';
-  }
-}
-
-async function prepareArModel(){
-  const serial=++arPrepareSerial;
-  setArPrepStatus('fyzicky prepočítavam geometriu…',false);
-
-  try{
-    const src=sourceArFile();
-    const gltf=await new Promise((resolve,reject)=>{
-      new GLTFLoader().load(src,resolve,undefined,reject);
-    });
-
-    if(serial!==arPrepareSerial)return;
-
-    const sourceScene=gltf.scene;
-    sourceScene.updateMatrixWorld(true);
-
-    // Stred pôvodného modelu v jeho svetových súradniciach.
-    const sourceBox=new THREE.Box3().setFromObject(sourceScene);
-    const sourceCenter=sourceBox.getCenter(new THREE.Vector3());
-
-    // Rotácia, ktorú zvolil používateľ.
-    const rotationMatrix=new THREE.Matrix4().makeRotationFromEuler(
-      new THREE.Euler(
-        THREE.MathUtils.degToRad(arOrientation.x),
-        THREE.MathUtils.degToRad(arOrientation.y),
-        THREE.MathUtils.degToRad(arOrientation.z),
-        'XYZ'
-      )
-    );
-
-    const toOrigin=new THREE.Matrix4().makeTranslation(
-      -sourceCenter.x,
-      -sourceCenter.y,
-      -sourceCenter.z
-    );
-
-    // R * T(-center)
-    const userTransform=new THREE.Matrix4().multiplyMatrices(rotationMatrix,toOrigin);
-
-    // Vytvoríme úplne novú scénu s IDENTITY transformáciami.
-    // Každý vertex dostane world transform pôvodného meshu + používateľskú rotáciu.
-    const bakedScene=new THREE.Scene();
-
-    sourceScene.traverse(obj=>{
-      if(!(obj.isMesh || obj.isLineSegments || obj.isLine) || !obj.geometry)return;
-
-      const geometry=obj.geometry.clone();
-
-      // lokálne vertexy -> pôvodný svet -> centrovanie -> používateľská rotácia
-      const fullMatrix=new THREE.Matrix4().multiplyMatrices(userTransform,obj.matrixWorld);
-      geometry.applyMatrix4(fullMatrix);
-
-      let baked;
-      if(obj.isMesh){
-        const mat=Array.isArray(obj.material)
-          ? obj.material.map(m=>m.clone())
-          : obj.material.clone();
-        baked=new THREE.Mesh(geometry,mat);
-      }else if(obj.isLineSegments){
-        const mat=Array.isArray(obj.material)
-          ? obj.material.map(m=>m.clone())
-          : obj.material.clone();
-        baked=new THREE.LineSegments(geometry,mat);
-      }else{
-        const mat=Array.isArray(obj.material)
-          ? obj.material.map(m=>m.clone())
-          : obj.material.clone();
-        baked=new THREE.Line(geometry,mat);
-      }
-
-      baked.name=obj.name || 'BAKED';
-      baked.position.set(0,0,0);
-      baked.rotation.set(0,0,0);
-      baked.scale.set(1,1,1);
-      baked.updateMatrix();
-      bakedScene.add(baked);
-    });
-
-    bakedScene.updateMatrixWorld(true);
-
-    // Model po fyzickej rotácii položíme spodnou hranou na AR podlahu
-    // a vycentrujeme v horizontálnej X/Z rovine.
-    let bakedBox=new THREE.Box3().setFromObject(bakedScene);
-    const bakedCenter=bakedBox.getCenter(new THREE.Vector3());
-    const floorShift=new THREE.Matrix4().makeTranslation(
-      -bakedCenter.x,
-      -bakedBox.min.y,
-      -bakedCenter.z
-    );
-
-    bakedScene.children.forEach(obj=>{
-      obj.geometry.applyMatrix4(floorShift);
-      obj.position.set(0,0,0);
-      obj.rotation.set(0,0,0);
-      obj.scale.set(1,1,1);
-      obj.updateMatrix();
-    });
-
-    bakedScene.updateMatrixWorld(true);
-
-    // Diagnostická kontrola: výsledný root už nemá žiadnu používateľskú rotáciu.
-    const finalBox=new THREE.Box3().setFromObject(bakedScene);
-    const finalSize=finalBox.getSize(new THREE.Vector3());
-
-    const exporter=new GLTFExporter();
-    const arrayBuffer=await new Promise((resolve,reject)=>{
-      exporter.parse(
-        bakedScene,
-        result=>resolve(result),
-        err=>reject(err),
-        {
-          binary:true,
-          onlyVisible:true,
-          trs:false
-        }
-      );
-    });
-
-    if(serial!==arPrepareSerial)return;
-
-    if(preparedArUrl)URL.revokeObjectURL(preparedArUrl);
-    preparedArUrl=URL.createObjectURL(
-      new Blob([arrayBuffer],{type:'model/gltf-binary'})
-    );
-
-    const arViewer=document.getElementById('arViewer');
-
-    await new Promise((resolve,reject)=>{
-      const onLoad=()=>{cleanup();resolve()};
-      const onError=()=>{cleanup();reject(new Error('model-viewer nenačítal fyzicky otočený GLB'))};
-      const cleanup=()=>{
-        arViewer.removeEventListener('load',onLoad);
-        arViewer.removeEventListener('error',onError);
-      };
-
-      arViewer.addEventListener('load',onLoad,{once:true});
-      arViewer.addEventListener('error',onError,{once:true});
-      arViewer.src=preparedArUrl;
-    });
-
-    if(serial!==arPrepareSerial)return;
-
-    setArPrepStatus(
-      `pripravený ✓ &nbsp; X ${arOrientation.x}° · Y ${arOrientation.y}° · Z ${arOrientation.z}°`+
-      ` &nbsp; (${finalSize.x.toFixed(3)} × ${finalSize.y.toFixed(3)} × ${finalSize.z.toFixed(3)} m)`,
-      true
-    );
-
-  }catch(err){
-    console.error('AR vertex bake error',err);
-    setArPrepStatus(
-      'chyba fyzického prepočtu – obnov stránku',
-      false
-    );
-  }
-}
-
 function schedulePrepareAr(){
-  clearTimeout(arPrepareTimer);
-  setArPrepStatus('čakám na prípravu…',false);
-  arPrepareTimer=setTimeout(prepareArModel,220);
+  const el=document.getElementById('arPrepStatus');
+  if(el)el.innerHTML=
+    `<b>AR model:</b> ${currentMaterialMode.toUpperCase()} · farby ${highlightsEnabled?'ON':'OFF'} · `+
+    `X ${arOrientation.x}° · Y ${arOrientation.y}° · Z ${arOrientation.z}°`;
 }
 
-function applyOrientationToViewer(){
-  modelPivot.rotation.set(
-    THREE.MathUtils.degToRad(arOrientation.x),
-    THREE.MathUtils.degToRad(arOrientation.y),
-    THREE.MathUtils.degToRad(arOrientation.z),
-    'XYZ'
-  );
-  modelPivot.updateMatrixWorld(true);
-
-  const r=document.getElementById('orientationReadout');
-  if(r)r.textContent=`X ${arOrientation.x}° · Y ${arOrientation.y}° · Z ${arOrientation.z}°`;
-
-  schedulePrepareAr();
-}
 
 try{
   const saved=localStorage.getItem(ORIENT_KEY);
@@ -532,13 +337,18 @@ document.getElementById('orientationSave').addEventListener('click',()=>{
 });
 
 // Natívne AR tlačidlo ostane deaktivované, kým nie je hotový zapečený GLB.
-const nativeArBtn=document.querySelector('.nativeArBtn');
-nativeArBtn.disabled=true;
-nativeArBtn.textContent='AR PRIPRAVUJEM…';
-
 applyOrientationToViewer();
 
-document.getElementById('markerBtn').addEventListener('click',()=>location.href='./ar.html?v=104');
+document.getElementById('freeArBtn').addEventListener('click',()=>{
+  try{
+    localStorage.setItem('CA_0017_X_A_DT_AR_ORIENTATION_V102',JSON.stringify(arOrientation));
+    localStorage.setItem('CA_0017_X_A_DT_MATERIAL_V102',currentMaterialMode);
+    localStorage.setItem('CA_0017_X_A_DT_HIGHLIGHTS_V102',String(highlightsEnabled));
+  }catch(e){}
+  location.href='./free-ar.html?v=105';
+});
+
+document.getElementById('markerBtn').addEventListener('click',()=>location.href='./ar.html?v=105');
 
 function resize(){const w=wrap.clientWidth,h=wrap.clientHeight;renderer.setSize(w,h,false);pcam.aspect=w/h;pcam.updateProjectionMatrix();if(root)configureOrtho()}
 addEventListener('resize',resize);resize();
