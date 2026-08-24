@@ -129,6 +129,32 @@
       border-color:#b8b8b8;
     }
 
+    .opacityControl{
+      display:flex;
+      align-items:center;
+      gap:8px;
+      min-height:44px;
+      padding:0 10px;
+      border:1px solid #d2d2d2;
+      border-radius:10px;
+      background:#fff;
+      font-size:11px;
+      font-weight:750;
+      color:#555;
+    }
+
+    .opacityControl input{
+      width:120px;
+      accent-color:#444;
+    }
+
+    .opacityControl span{
+      min-width:38px;
+      text-align:right;
+      color:#222;
+      font-size:12px;
+    }
+
     .toolbar .ar{
       background:#ffc82e;
       border-color:#e2ae13;
@@ -197,6 +223,16 @@
       .toolbar .ar{
         margin-left:0;
       }
+
+      .opacityControl{
+        width:100%;
+        justify-content:space-between;
+      }
+
+      .opacityControl input{
+        flex:1;
+        min-width:100px;
+      }
     }
   </style>
 </head>
@@ -229,6 +265,12 @@
       <button type="button" id="edgesBtn" class="active">HRANY</button>
       <button type="button" id="solidBtn" class="active">SOLID</button>
 
+      <div class="opacityControl">
+        <label for="opacityRange">PRIEHĽADNOSŤ</label>
+        <input id="opacityRange" type="range" min="15" max="100" value="100" step="5">
+        <span id="opacityValue">100%</span>
+      </div>
+
       <button type="button" id="arBtn" class="ar">ZOBRAZIŤ V AR</button>
     </div>
 
@@ -256,8 +298,9 @@
 
     <div class="note">
       Sivý model používa tmavé geometrické hrany pre lepšiu čitateľnosť.
-      AR v tejto verzii umiestni model do priestoru; presné prekrytie na upnutý diel
-      bude ďalšia fáza s referenčným markerom.
+      Priehľadnosť je príprava na vizuálne porovnávanie CAD modelu s reálnym dielcom.
+      AR zatiaľ model voľne umiestni do priestoru; ďalší krok bude presné zarovnanie
+      podľa referenčného markeru na stroji alebo prípravku.
     </div>
 
   </section>
@@ -333,7 +376,10 @@
   const grayMaterial = new THREE.MeshStandardMaterial({
     color:0xb8bcc1,
     roughness:0.52,
-    metalness:0.12
+    metalness:0.12,
+    transparent:true,
+    opacity:1.0,
+    depthWrite:true
   });
 
   const edgeMaterial = new THREE.LineBasicMaterial({
@@ -478,6 +524,19 @@
     }
 
     solidBtn.classList.toggle('active', solidVisible);
+  });
+
+  const opacityRange = document.getElementById('opacityRange');
+  const opacityValue = document.getElementById('opacityValue');
+
+  opacityRange.addEventListener('input', () => {
+    const opacity = Number(opacityRange.value) / 100;
+    grayMaterial.opacity = opacity;
+    grayMaterial.depthWrite = opacity > 0.75;
+    opacityValue.textContent = `${opacityRange.value}%`;
+
+    // Hrany zostávajú výrazné aj pri transparentnom modeli.
+    edgeMaterial.opacity = opacity < 0.45 ? 1.0 : 0.92;
   });
 
   document.getElementById('arBtn').addEventListener('click', async () => {
