@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
-  <title>CA_0017_X_A_DT</title>
+  <title>CA_0017_X_A_DT - Free AR v1.0</title>
 
   <!-- model-viewer používame iba pre natívny AR režim -->
   <script type="module"
@@ -167,6 +167,27 @@
       margin-left:auto;
     }
 
+    .toolbar .saveStart{
+      background:#eef6ff;
+      border-color:#9dc7ee;
+    }
+
+    .toolbar .saveStart.saved{
+      background:#dff5e5;
+      border-color:#93c6a0;
+    }
+
+    .arStatus{
+      padding:0 14px 14px;
+      font-size:12px;
+      color:#555;
+      line-height:1.45;
+    }
+
+    .arStatus strong{
+      color:#111;
+    }
+
     .toolbar .ar:hover{
       background:#f4bd21;
     }
@@ -282,7 +303,8 @@
         <span id="opacityValue">100%</span>
       </div>
 
-      <button type="button" id="markerArBtn" class="ar">MARKER AR</button>
+      <button type="button" id="saveStartBtn" class="saveStart">ULOŽIŤ ŠTART AR</button>
+      <button type="button" id="resetStartBtn">RESET ŠTARTU</button>
       <button type="button" id="arBtn" class="ar">ZOBRAZIŤ V AR</button>
     </div>
 
@@ -308,11 +330,15 @@
       </div>
     </div>
 
+    <div class="arStatus" id="arStatus">
+      <strong>AR štart:</strong> používa sa základná orientácia modelu.
+      Otoč si model do želaného pohľadu a stlač <strong>ULOŽIŤ ŠTART AR</strong>.
+    </div>
+
     <div class="note">
-      Sivý model používa tmavé geometrické hrany pre lepšiu čitateľnosť.
-      FRONT / BACK / LEFT / RIGHT / TOP / BOTTOM sú vždy ortografické bez perspektívneho skreslenia.
-      ISO môžeš prepínať medzi perspektívnym a ortografickým pohľadom.
-      Priehľadnosť je príprava na vizuálne porovnávanie CAD modelu s reálnym dielcom.
+      Free-placement AR nepotrebuje HIRO marker. Po otvorení AR nájdi kamerou rovný povrch,
+      polož model do priestoru a potom môžeš s mobilom chodiť okolo neho.
+      Uložená štartovacia orientácia sa pamätá v tomto zariadení pre tento diel.
     </div>
 
   </section>
@@ -646,12 +672,111 @@
     edgeMaterial.opacity = opacity < 0.45 ? 1.0 : 0.92;
   });
 
-  document.getElementById('markerArBtn').addEventListener('click', () => {
-    window.location.href = 'ar.html';
+  // --- FREE-PLACEMENT AR START ORIENTATION --------------------------
+  // OrbitControls menia polohu kamery okolo modelu. Pri "ULOŽIŤ ŠTART AR"
+  // premeníme aktuálny pohľad na počiatočnú orientáciu modelu v AR.
+  const AR_STORAGE_KEY = 'CA_0017_X_A_DT_ar_start_v1';
+  const arViewer = document.getElementById('arViewer');
+  const saveStartBtn = document.getElementById('saveStartBtn');
+  const resetStartBtn = document.getElementById('resetStartBtn');
+  const arStatus = document.getElementById('arStatus');
+
+  let savedArStart = null;
+
+  function radToDeg(rad){
+    return rad * 180 / Math.PI;
+  }
+
+  function normalizeDeg(deg){
+    let d = deg % 360;
+    if (d > 180) d -= 360;
+    if (d < -180) d += 360;
+    return d;
+  }
+
+  function readCurrentViewAsArOrientation(){
+    // Vektor od stredu modelu ku kamere.
+    const offset = activeCamera.position.clone().sub(controls.target);
+    const spherical = new THREE.Spherical().setFromVector3(offset);
+
+    // theta = horizontálny orbit okolo Z
+    // phi   = uhol od +Y v Three spherical konvencii.
+    //
+    // Pre AR potrebujeme predovšetkým yaw okolo zvislej osi.
+    // Pitch obmedzíme, aby sa model pri extrémnom TOP pohľade nepostavil nezmyselne.
+    const yaw = normalizeDeg(-radToDeg(spherical.theta) + 180);
+    let pitch = normalizeDeg(radToDeg(spherical.phi) - 90);
+    pitch = Math.max(-80, Math.min(80, pitch));
+
+    // model-viewer orientation používa Euler uhly v tvare x y z.
+    // Pri našom CAD-e je užitočné držať roll nulový a uložiť používateľský pohľad
+    // ako pitch + yaw.
+    return {
+      x: pitch,
+      y: 0,
+      z: yaw
+    };
+  }
+
+  function orientationString(o){
+    return `${o.x.toFixed(1)}deg ${o.y.toFixed(1)}deg ${o.z.toFixed(1)}deg`;
+  }
+
+  function applySavedArStart(){
+    if (!savedArStart) {
+      arViewer.removeAttribute('orientation');
+      saveStartBtn.classList.remove('saved');
+      arStatus.innerHTML =
+        '<strong>AR štart:</strong> používa sa základná orientácia modelu. ' +
+        'Otoč si model do želaného pohľadu a stlač <strong>ULOŽIŤ ŠTART AR</strong>.';
+      return;
+    }
+
+    arViewer.setAttribute('orientation', orientationString(savedArStart));
+    saveStartBtn.classList.add('saved');
+
+    arStatus.innerHTML =
+      `<strong>AR štart uložený:</strong> X ${savedArStart.x.toFixed(0)}° · ` +
+      `Y ${savedArStart.y.toFixed(0)}° · Z ${savedArStart.z.toFixed(0)}°. ` +
+      `Táto orientácia sa použije pri otvorení AR.`;
+  }
+
+  try {
+    const stored = localStorage.getItem(AR_STORAGE_KEY);
+    if (stored) savedArStart = JSON.parse(stored);
+  } catch (e) {
+    console.warn('AR start sa nepodarilo načítať:', e);
+  }
+
+  applySavedArStart();
+
+  saveStartBtn.addEventListener('click', () => {
+    if (!modelRoot) return;
+
+    savedArStart = readCurrentViewAsArOrientation();
+
+    try {
+      localStorage.setItem(AR_STORAGE_KEY, JSON.stringify(savedArStart));
+    } catch (e) {
+      console.warn('AR start sa nepodarilo uložiť:', e);
+    }
+
+    applySavedArStart();
+  });
+
+  resetStartBtn.addEventListener('click', () => {
+    savedArStart = null;
+
+    try {
+      localStorage.removeItem(AR_STORAGE_KEY);
+    } catch (e) {}
+
+    applySavedArStart();
   });
 
   document.getElementById('arBtn').addEventListener('click', async () => {
-    const arViewer = document.getElementById('arViewer');
+    // Pred aktiváciou ešte raz aplikujeme uloženú orientáciu.
+    applySavedArStart();
 
     try {
       if (typeof arViewer.activateAR === 'function') {
