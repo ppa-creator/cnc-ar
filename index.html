@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
-  <title>CA_0017_X_A_DT - Free AR v1.0</title>
+  <title>CA_0017_X_A_DT - Free AR v1.1</title>
 
   <!-- model-viewer používame iba pre natívny AR režim -->
   <script type="module"
@@ -306,6 +306,7 @@
       <button type="button" id="saveStartBtn" class="saveStart">ULOŽIŤ ŠTART AR</button>
       <button type="button" id="resetStartBtn">RESET ŠTARTU</button>
       <button type="button" id="arBtn" class="ar">ZOBRAZIŤ V AR</button>
+      <button type="button" id="markerArBtn">MARKER AR</button>
     </div>
 
     <div class="grid">
@@ -331,8 +332,9 @@
     </div>
 
     <div class="arStatus" id="arStatus">
-      <strong>AR štart:</strong> používa sa základná orientácia modelu.
-      Otoč si model do želaného pohľadu a stlač <strong>ULOŽIŤ ŠTART AR</strong>.
+      <strong>AR štart:</strong> otoč model do želanej orientácie a stlač
+      <strong>ULOŽIŤ ŠTART AR</strong>. Potom stlač <strong>ZOBRAZIŤ V AR</strong>,
+      pomaly pohybuj mobilom nad stolom, počkaj na rozpoznanie roviny a ťuknutím model polož.
     </div>
 
     <div class="note">
@@ -345,7 +347,7 @@
 
   <model-viewer
     id="arViewer"
-    src="CA_0017_X_A_DT.glb"
+    src="CA_0017_X_A_DT_AR_METERS.glb"
     ar
     ar-scale="fixed"
     ar-modes="webxr scene-viewer quick-look">
@@ -726,19 +728,23 @@
     if (!savedArStart) {
       arViewer.removeAttribute('orientation');
       saveStartBtn.classList.remove('saved');
+      saveStartBtn.textContent = 'ULOŽIŤ ŠTART AR';
       arStatus.innerHTML =
-        '<strong>AR štart:</strong> používa sa základná orientácia modelu. ' +
-        'Otoč si model do želaného pohľadu a stlač <strong>ULOŽIŤ ŠTART AR</strong>.';
+        '<strong>AR štart:</strong> otoč model do želanej orientácie a stlač ' +
+        '<strong>ULOŽIŤ ŠTART AR</strong>. Potom otvor AR, pomaly pohybuj mobilom nad stolom ' +
+        'a po rozpoznaní roviny ťukni na miesto, kde chceš model položiť.';
       return;
     }
 
     arViewer.setAttribute('orientation', orientationString(savedArStart));
     saveStartBtn.classList.add('saved');
+    saveStartBtn.textContent = 'ŠTART ULOŽENÝ ✓';
 
     arStatus.innerHTML =
-      `<strong>AR štart uložený:</strong> X ${savedArStart.x.toFixed(0)}° · ` +
+      `<strong>AR štart uložený ✓</strong> X ${savedArStart.x.toFixed(0)}° · ` +
       `Y ${savedArStart.y.toFixed(0)}° · Z ${savedArStart.z.toFixed(0)}°. ` +
-      `Táto orientácia sa použije pri otvorení AR.`;
+      `Teraz stlač <strong>ZOBRAZIŤ V AR</strong>. V AR pomaly pohybuj mobilom nad stolom, ` +
+      `počkajte na rozpoznanie roviny a ťukni na miesto, kde chceš model položiť.`;
   }
 
   try {
@@ -789,6 +795,11 @@
       alert('AR sa nepodarilo spustiť na tomto zariadení.');
     }
   });
+
+  document.getElementById('markerArBtn').addEventListener('click', () => {
+    window.location.href = './ar.html?v=9';
+  });
+
 
   function resize(){
     const w = wrap.clientWidth;
