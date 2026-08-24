@@ -1,0 +1,54 @@
+<!doctype html>
+<html lang="sk">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>CNC AR - testovací marker</title>
+  <style>
+    *{box-sizing:border-box}
+    body{margin:0;background:#e8e8e8;font-family:Arial,sans-serif;color:#111}
+    .sheet{width:210mm;min-height:297mm;margin:10mm auto;background:#fff;padding:16mm;box-shadow:0 4px 22px rgba(0,0,0,.15)}
+    h1{font-size:18pt;margin:0 0 3mm}.sub{font-size:10pt;color:#555;margin-bottom:10mm}
+    .row{display:flex;gap:18mm;align-items:flex-start;justify-content:center}
+    .block{text-align:center}.label{font-size:10pt;font-weight:bold;margin-bottom:3mm}
+    .hiro{width:100mm;height:100mm;object-fit:contain;display:block}
+    .qr{width:48mm;height:48mm;image-rendering:pixelated;display:block;margin:0 auto}
+    .small{font-size:8.5pt;color:#555;margin-top:3mm;line-height:1.35;max-width:55mm}
+    .steps{margin-top:14mm;border-top:0.4mm solid #ddd;padding-top:7mm;font-size:10pt;line-height:1.55}
+    .warn{margin-top:7mm;background:#f5f5f5;border:0.3mm solid #ddd;border-radius:3mm;padding:4mm;font-size:9pt;line-height:1.4}
+    @media print{body{background:#fff}.sheet{margin:0;box-shadow:none;width:210mm;min-height:297mm}.no-print{display:none}}
+  </style>
+</head>
+<body>
+  <div class="sheet">
+    <h1>CNC AR - CA_0017_X_A_DT</h1>
+    <div class="sub">Test markerového ukotvenia 3D CAD modelu. Tlač v mierke 100 % / Actual size.</div>
+
+    <div class="row">
+      <div class="block">
+        <div class="label">AR MARKER - 100 mm</div>
+        <img class="hiro" alt="HIRO AR marker" src="https://raw.githubusercontent.com/AR-js-org/AR.js/master/data/images/hiro.png">
+        <div class="small">Marker musí byť vytlačený presne na šírku 100 mm. Polož ho naplocho na stôl.</div>
+      </div>
+
+      <div class="block">
+        <div class="label">OTVORIŤ AR</div>
+        <img class="qr" alt="QR na AR stránku" src="QR_MARKER_AR.png">
+        <div class="small">Naskenuj QR kamerou mobilu, povoľ kameru na stránke a potom namier mobil na HIRO marker.</div>
+      </div>
+    </div>
+
+    <div class="steps">
+      <b>Postup testu:</b><br>
+      1. Vytlač túto stránku na A4 bez prispôsobenia veľkosti.<br>
+      2. Polož papier na stôl na dobre osvetlenom mieste.<br>
+      3. Naskenuj QR kód a otvor AR stránku.<br>
+      4. Povoľ prístup ku kamere.<br>
+      5. Namier kameru na celý HIRO marker. Nad markerom sa má objaviť sivý CAD model s modrými plochami Ø6,03 a tmavými hranami.<br>
+      6. Pohybuj mobilom okolo markeru. Model má zostať pri markeri.
+    </div>
+
+    <div class="warn"><b>Poznámka:</b> Toto je prvý markerový test, nie metrologické meranie. Ak bude tracking stabilný, ďalší krok je kalibrácia offsetu Marker -> Fixture -> Workpiece CS na CNC stroji.</div>
+  </div>
+</body>
+</html>
