@@ -1,0 +1,129 @@
+<!doctype html>
+<html lang="sk">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+  <title>CA_0017_X_A_DT - Marker AR</title>
+
+  <script src="https://aframe.io/releases/1.6.0/aframe.min.js"></script>
+  <script src="https://raw.githack.com/AR-js-org/AR.js/master/aframe/build/aframe-ar.js"></script>
+
+  <style>
+    html,body{margin:0;width:100%;height:100%;overflow:hidden;background:#000;font-family:system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}
+    .hud{position:fixed;left:12px;right:12px;top:12px;z-index:20;display:flex;justify-content:space-between;align-items:flex-start;gap:10px;pointer-events:none}
+    .panel{background:rgba(10,10,10,.78);color:#fff;padding:10px 12px;border-radius:12px;backdrop-filter:blur(8px);max-width:min(430px,75vw);box-shadow:0 2px 12px rgba(0,0,0,.22)}
+    .title{font-weight:850;font-size:15px}.sub{font-size:12px;opacity:.8;margin-top:3px;line-height:1.35}
+    #status{display:inline-block;margin-top:7px;padding:5px 8px;border-radius:999px;background:#6d5a00;color:#fff4b6;font-size:11px;font-weight:850}
+    #status.found{background:#145c32;color:#d9ffe7}
+    .back{pointer-events:auto;border:0;border-radius:10px;background:rgba(255,255,255,.94);color:#111;font-weight:800;padding:10px 12px;text-decoration:none;min-height:42px;display:flex;align-items:center}
+    .hint{position:fixed;left:50%;bottom:18px;transform:translateX(-50%);z-index:20;background:rgba(10,10,10,.76);color:#fff;padding:9px 12px;border-radius:999px;font-size:12px;text-align:center;white-space:nowrap;max-width:calc(100vw - 24px);overflow:hidden;text-overflow:ellipsis;pointer-events:none}
+    .arjs-loader{height:100%;width:100%;position:absolute;top:0;left:0;background:#111;z-index:9999;display:flex;justify-content:center;align-items:center;color:#fff;font-weight:700}
+  </style>
+
+  <script>
+    AFRAME.registerComponent('cnc-cad-style', {
+      init: function () {
+        this.el.addEventListener('model-loaded', () => {
+          const root = this.el.getObject3D('mesh');
+          if (!root) return;
+
+          const meshes = [];
+          root.traverse((node) => {
+            if (node.isMesh && node.geometry) meshes.push(node);
+          });
+
+          meshes.forEach((mesh) => {
+            mesh.material = new THREE.MeshStandardMaterial({
+              color: 0xb9bdc2,
+              roughness: 0.58,
+              metalness: 0.10,
+              side: THREE.DoubleSide
+            });
+
+            const eg = new THREE.EdgesGeometry(mesh.geometry, 25);
+            const em = new THREE.LineBasicMaterial({
+              color: 0x303438,
+              transparent: true,
+              opacity: 0.95
+            });
+            const lines = new THREE.LineSegments(eg, em);
+            lines.renderOrder = 4;
+            mesh.add(lines);
+          });
+
+          // STEP/GLB používa Z ako výšku. Vycentrujeme X/Y a spodnú Z položíme na marker.
+          root.updateMatrixWorld(true);
+          const box = new THREE.Box3().setFromObject(root);
+          const center = new THREE.Vector3();
+          box.getCenter(center);
+          this.el.object3D.position.set(-center.x, -center.y, -box.min.z);
+
+          document.getElementById('modelState').textContent = 'Model načítaný';
+        });
+      }
+    });
+
+    window.addEventListener('load', () => {
+      const marker = document.querySelector('#hiroMarker');
+      const status = document.querySelector('#status');
+      const hint = document.querySelector('.hint');
+
+      marker.addEventListener('markerFound', () => {
+        status.textContent = 'MARKER NÁJDENÝ';
+        status.classList.add('found');
+        hint.textContent = 'Model je ukotvený nad markerom - môžeš s mobilom chodiť okolo.';
+      });
+
+      marker.addEventListener('markerLost', () => {
+        status.textContent = 'HĽADÁM MARKER';
+        status.classList.remove('found');
+        hint.textContent = 'Namier kameru na celý HIRO marker.';
+      });
+    });
+  </script>
+</head>
+<body>
+  <div class="arjs-loader"><div>Spúšťam kameru a AR...</div></div>
+
+  <div class="hud">
+    <div class="panel">
+      <div class="title">CA_0017_X_A_DT</div>
+      <div class="sub">Marker AR test · virtuálna mierka 1:1 pri vytlačenom 100 mm markeri<br><span id="modelState">Načítavam model...</span></div>
+      <span id="status">HĽADÁM MARKER</span>
+    </div>
+    <a class="back" href="./">3D VIEWER</a>
+  </div>
+
+  <div class="hint">Namier kameru na celý HIRO marker.</div>
+
+  <a-scene
+    embedded
+    vr-mode-ui="enabled:false"
+    renderer="antialias:true; colorManagement:true; physicallyCorrectLights:true;"
+    arjs="sourceType:webcam; videoTexture:true; debugUIEnabled:false; detectionMode:mono; matrixCodeType:3x3;"
+  >
+    <a-assets timeout="30000">
+      <a-asset-item id="cadAsset" src="CA_0017_X_A_DT.glb"></a-asset-item>
+    </a-assets>
+
+    <a-marker id="hiroMarker" preset="hiro" smooth="true" smoothCount="7" smoothTolerance="0.01" smoothThreshold="3">
+      <!--
+        Marker má fyzicky 100 mm. AR.js marker width = 1 jednotka.
+        CAD je v mm, preto scale 0.01 => 100 mm CAD = 1 marker unit.
+        Rotácia -90° okolo X premapuje CAD Z-up na AR Y-up.
+      -->
+      <a-entity rotation="-90 0 0" scale="0.01 0.01 0.01">
+        <a-entity
+          gltf-model="#cadAsset"
+          cnc-cad-style
+        ></a-entity>
+      </a-entity>
+
+      <a-entity light="type:ambient; intensity:1.6; color:#ffffff"></a-entity>
+      <a-entity light="type:directional; intensity:1.4; color:#ffffff" position="2 4 3"></a-entity>
+    </a-marker>
+
+    <a-entity camera></a-entity>
+  </a-scene>
+</body>
+</html>
