@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
-  <title>CA_0017_X_A_DT · CNC 3D Viewer v105</title>
+  <title>CA_0017_X_A_DT · CNC 3D Viewer v105.1</title>
 
   <script type="module" src="https://cdn.jsdelivr.net/npm/@google/model-viewer@4.0.0/dist/model-viewer.min.js"></script>
   <script type="importmap">
@@ -56,7 +56,7 @@
 <div class="app">
   <div class="head">
     <div><div class="title">CA_0017_X_A_DT</div><div class="sub">CNC operátorský 3D viewer · DOOSAN DVF6500</div></div>
-    <div class="badge">CLEAN BUILD v105</div>
+    <div class="badge">CLEAN BUILD v105.1</div>
   </div>
 
   <section class="card">
@@ -100,7 +100,7 @@
           Otočenie mení samotný diel, nie kameru. Nastav diel tak, ako ho chceš po prvom vložení do AR.
           Rotácia sa teraz <b>fyzicky zapečie do AR modelu</b>, takže ju AR už nemôže ignorovať.
         </div>
-        <div class="orientationHelp" id="arPrepStatus"><b>AR model:</b> pevná mierka 1:1 cez WebXR v105</div>
+        <div class="orientationHelp" id="arPrepStatus"><b>AR nastavenie:</b> pripravené na vlastný WebXR režim</div>
       </div>
 
       <!-- Dôležité: toto je skutočný, viditeľný model-viewer s natívnym AR tlačidlom. -->
@@ -121,9 +121,9 @@
     </div>
 
     <div class="note">
-      V105 používa vlastný <b>WebXR free-placement AR</b>. Po ťuknutí na rovinu sa model vloží raz
-      v pevnej mierke 1:1 a jeho scale ani orientácia sa potom nemenia. AR používa uloženú X/Y/Z
-      orientáciu, CAD/ALUMINIUM/MATTE vzhľad aj FAREBNÉ PLOCHY ON/OFF.
+      Základný 3D viewer v tejto verzii zostáva na stabilnom jadre z v104.
+      Tlačidlo <b>ZOBRAZIŤ V AR</b> otvára samostatný <b>free-ar.html</b>, ktorý používa pevný WebXR hit-test režim.
+      Materiál, farebné plochy a uložená X/Y/Z orientácia sa odovzdajú cez lokálne nastavenie zariadenia.
     </div>
   </section>
 </div>
@@ -302,11 +302,28 @@ function sourceArFile(){
 
 function schedulePrepareAr(){
   const el=document.getElementById('arPrepStatus');
-  if(el)el.innerHTML=
-    `<b>AR model:</b> ${currentMaterialMode.toUpperCase()} · farby ${highlightsEnabled?'ON':'OFF'} · `+
-    `X ${arOrientation.x}° · Y ${arOrientation.y}° · Z ${arOrientation.z}°`;
+  if(el){
+    el.innerHTML=
+      `<b>AR nastavenie:</b> ${currentMaterialMode.toUpperCase()} · farby ${highlightsEnabled?'ON':'OFF'} · `+
+      `X ${arOrientation.x}° · Y ${arOrientation.y}° · Z ${arOrientation.z}°`;
+  }
 }
 
+
+function applyOrientationToViewer(){
+  modelPivot.rotation.set(
+    THREE.MathUtils.degToRad(arOrientation.x),
+    THREE.MathUtils.degToRad(arOrientation.y),
+    THREE.MathUtils.degToRad(arOrientation.z),
+    'XYZ'
+  );
+  modelPivot.updateMatrixWorld(true);
+
+  const r=document.getElementById('orientationReadout');
+  if(r)r.textContent=`X ${arOrientation.x}° · Y ${arOrientation.y}° · Z ${arOrientation.z}°`;
+
+  schedulePrepareAr();
+}
 
 try{
   const saved=localStorage.getItem(ORIENT_KEY);
@@ -345,10 +362,10 @@ document.getElementById('freeArBtn').addEventListener('click',()=>{
     localStorage.setItem('CA_0017_X_A_DT_MATERIAL_V102',currentMaterialMode);
     localStorage.setItem('CA_0017_X_A_DT_HIGHLIGHTS_V102',String(highlightsEnabled));
   }catch(e){}
-  location.href='./free-ar.html?v=105';
+  location.href='./free-ar.html?v=1051';
 });
 
-document.getElementById('markerBtn').addEventListener('click',()=>location.href='./ar.html?v=105');
+document.getElementById('markerBtn').addEventListener('click',()=>location.href='./ar.html?v=1051');
 
 function resize(){const w=wrap.clientWidth,h=wrap.clientHeight;renderer.setSize(w,h,false);pcam.aspect=w/h;pcam.updateProjectionMatrix();if(root)configureOrtho()}
 addEventListener('resize',resize);resize();

@@ -1,15 +1,14 @@
-CNC AR CLEAN v105
+CNC AR CLEAN v105.1
 
 Nahraj vsetky subory priamo do rootu GitHub repository cnc-ar.
 
 Hlavna stranka:
-https://ppa-creator.github.io/cnc-ar/?v=105
+https://ppa-creator.github.io/cnc-ar/?v=1051
 
-Novinka:
-- free-ar.html = vlastny WebXR hit-test AR
-- pevna mierka 1:1
-- po umiestneni sa scale ani orientacia modelu nemenia
-- pouziva ulozenu X/Y/Z orientaciu
-- pouziva CAD / ALUMINIUM / MATTE a farebne plochy ON/OFF
+Tato verzia:
+- vracia stabilny hlavny 3D viewer z v104
+- free-ar.html zostava samostatny WebXR experiment
+- ZOBRAZIT V AR len odovzda material/farby/orientaciu a otvori free-ar.html
+- hlavny GLB loader sa nemenil
 
 Subory nepremenovavaj.
