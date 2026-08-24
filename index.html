@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
-  <title>CA_0017_X_A_DT - Free AR v1.2</title>
+  <title>CA_0017_X_A_DT - Free AR v1.3 · D6.03 highlight</title>
 
   <!-- model-viewer používame iba pre natívny AR režim -->
   <script type="module"
@@ -219,6 +219,24 @@
       cursor:not-allowed;
     }
 
+    /* AR engine musí zostať reálne vykreslený v DOM.
+       Nechávame ho 2x2 px mimo bežného obsahu, nie display:none. */
+    .arEngineWrap{
+      position:absolute;
+      left:-10px;
+      top:-10px;
+      width:2px;
+      height:2px;
+      overflow:hidden;
+      pointer-events:none;
+    }
+
+    .arEngineWrap model-viewer{
+      display:block;
+      width:2px;
+      height:2px;
+    }
+
     .grid{
       display:grid;
       grid-template-columns:repeat(4,minmax(0,1fr));
@@ -322,20 +340,7 @@
       <button type="button" id="saveStartBtn" class="saveStart">ULOŽIŤ ŠTART AR</button>
       <button type="button" id="resetStartBtn">RESET ŠTARTU</button>
 
-      <model-viewer
-        id="arViewer"
-        class="arLauncher"
-        src="CA_0017_X_A_DT_AR_METERS.glb"
-        loading="eager"
-        ar
-        ar-scale="fixed"
-        ar-placement="floor"
-        ar-modes="webxr scene-viewer"
-        shadow-intensity="1">
-        <button type="button" slot="ar-button" id="nativeArBtn" class="nativeArBtn">
-          ZOBRAZIŤ V AR
-        </button>
-      </model-viewer>
+      <button type="button" id="nativeArBtn" class="nativeArBtn">ZOBRAZIŤ V AR</button>
 
       <button type="button" id="markerArBtn">MARKER AR</button>
     </div>
@@ -362,6 +367,8 @@
       </div>
     </div>
 
+    <div class="arStatus"><strong>Farebné plochy:</strong> <span style="color:#2374cd;font-weight:800">■ Ø6,03 – valcová plocha + dno po vrtáku</span></div>
+
     <div class="arStatus" id="arStatus">
       <strong>AR štart:</strong> otoč model do želanej orientácie a stlač
       <strong>ULOŽIŤ ŠTART AR</strong>. Potom stlač <strong>ZOBRAZIŤ V AR</strong>,
@@ -375,6 +382,21 @@
     </div>
 
   </section>
+  <div class="arEngineWrap" aria-hidden="true">
+    <model-viewer
+      id="arViewer"
+      src="CA_0017_X_A_DT_D603_BLUE_AR_METERS.glb"
+      alt="AR model CA_0017_X_A_DT"
+      loading="eager"
+      camera-controls
+      ar
+      ar-scale="fixed"
+      ar-placement="floor"
+      ar-modes="webxr scene-viewer"
+      shadow-intensity="1">
+    </model-viewer>
+  </div>
+
 </div>
 
 <script type="module">
@@ -453,6 +475,15 @@
     color:0xb8bcc1,
     roughness:0.52,
     metalness:0.12,
+    transparent:true,
+    opacity:1.0,
+    depthWrite:true
+  });
+
+  const d603BlueMaterial = new THREE.MeshStandardMaterial({
+    color:0x2374cd,
+    roughness:0.45,
+    metalness:0.08,
     transparent:true,
     opacity:1.0,
     depthWrite:true
@@ -619,13 +650,17 @@
   const loader = new GLTFLoader();
 
   loader.load(
-    'CA_0017_X_A_DT.glb',
+    'CA_0017_X_A_DT_D603_BLUE.glb',
     gltf => {
       modelRoot = gltf.scene;
 
       modelRoot.traverse(obj => {
         if (obj.isMesh) {
-          obj.material = grayMaterial;
+          const importedName = obj.material && obj.material.name ? obj.material.name : '';
+          const objectName = obj.name || '';
+          const isD603 = importedName.includes('D603_BLUE') || objectName.includes('D603_BLUE');
+
+          obj.material = isD603 ? d603BlueMaterial : grayMaterial;
           obj.castShadow = true;
           obj.receiveShadow = true;
         }
@@ -690,6 +725,8 @@
     const opacity = Number(opacityRange.value) / 100;
     grayMaterial.opacity = opacity;
     grayMaterial.depthWrite = opacity > 0.75;
+    d603BlueMaterial.opacity = opacity;
+    d603BlueMaterial.depthWrite = opacity > 0.75;
     opacityValue.textContent = `${opacityRange.value}%`;
 
     // Hrany zostávajú výrazné aj pri transparentnom modeli.
@@ -807,43 +844,62 @@
   function refreshArButton(){
     if (!nativeArBtn || !arViewer) return;
 
+    // Necháme tlačidlo klikateľné aj počas zisťovania podpory.
+    // Pri kliknutí dostaneme presnú chybu z activateAR().
+    nativeArBtn.disabled = false;
+
     if (arViewer.canActivateAR) {
-      nativeArBtn.disabled = false;
       nativeArBtn.textContent = 'ZOBRAZIŤ V AR';
+      nativeArBtn.title = 'Spustiť free-placement AR';
     } else {
-      nativeArBtn.disabled = true;
-      nativeArBtn.textContent = 'AR SA PRIPRAVUJE…';
+      nativeArBtn.textContent = 'ZOBRAZIŤ V AR';
+      nativeArBtn.title = 'AR podpora sa ešte overuje';
     }
   }
 
-  arViewer.addEventListener('load', refreshArButton);
+  arViewer.addEventListener('load', () => {
+    refreshArButton();
+  });
 
   arViewer.addEventListener('ar-status', (event) => {
     const status = event.detail && event.detail.status ? event.detail.status : '';
 
-    if (status === 'failed') {
-      arStatus.innerHTML =
-        '<strong>AR sa nepodarilo spustiť.</strong> Over, či má telefón podporu ARCore / ' +
-        'Google Play Services for AR a či je otvorená stránka v Chrome.';
-    }
-
     if (status === 'session-started') {
       arStatus.innerHTML =
         '<strong>AR spustené.</strong> Pomaly pohybuj mobilom nad stolom, aby telefón našiel rovinu.';
-    }
-
-    if (status === 'object-placed') {
+    } else if (status === 'object-placed') {
       arStatus.innerHTML =
         '<strong>Model položený ✓</strong> Teraz môžeš s mobilom chodiť okolo modelu.';
+    } else if (status === 'failed') {
+      arStatus.innerHTML =
+        '<strong>AR štart zlyhal.</strong> Skús Chrome, zapnuté Google Play Services for AR ' +
+        'a obnov stránku. Marker AR môžeš použiť ako záložný režim.';
     }
   });
 
-  nativeArBtn.addEventListener('pointerdown', () => {
+  nativeArBtn.addEventListener('click', async () => {
     applySavedArStart();
-  }, {capture:true});
 
-  setTimeout(refreshArButton, 700);
-  setTimeout(refreshArButton, 1800);
+    arStatus.innerHTML =
+      '<strong>Spúšťam AR…</strong> Ak sa zobrazí kamera, pomaly skenuj rovinu stola.';
+
+    try {
+      if (typeof arViewer.activateAR !== 'function') {
+        throw new Error('activateAR() nie je dostupné');
+      }
+
+      await arViewer.activateAR();
+    } catch (err) {
+      console.error('AR launch error:', err);
+      arStatus.innerHTML =
+        '<strong>AR sa nepodarilo spustiť.</strong> ' +
+        'Chyba: ' + (err && err.message ? err.message : 'neznáma chyba') +
+        '. Skús MARKER AR ako kontrolu kamery/AR podpory.';
+    }
+  });
+
+  setTimeout(refreshArButton, 500);
+  setTimeout(refreshArButton, 1500);
 
   document.getElementById('markerArBtn').addEventListener('click', () => {
     window.location.href = './ar.html?v=9';
